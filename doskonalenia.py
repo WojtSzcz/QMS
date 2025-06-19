@@ -3,8 +3,6 @@ import psycopg2
 import pandas as pd
 from psycopg2.extras import RealDictCursor
 import time
-import reklamacje
-import doskonalenia
 
 # Database connection parameters
 db_params = {
@@ -14,13 +12,6 @@ db_params = {
     "host": "localhost",
     "port": "5432"
 }
-
-# Page configuration
-st.set_page_config(page_title="Zehs - System jakości", layout="wide")
-
-# Create sidebar navigation
-st.sidebar.title("Nawigacja")
-page = st.sidebar.radio("Wybierz stronę:", ["Reklamacje", "Doskonalenia"])
 
 # Initialize session state for error messages
 if 'update_errors' not in st.session_state:
@@ -33,14 +24,14 @@ if 'update_logs' not in st.session_state:
     st.session_state.update_logs = []
 
 # Initialize session state for data tracking
-if 'edited_df' not in st.session_state:
-    st.session_state.edited_df = None
+if 'edited_df_doskonalenia' not in st.session_state:
+    st.session_state.edited_df_doskonalenia = None
 
-if 'original_df' not in st.session_state:
-    st.session_state.original_df = None
+if 'original_df_doskonalenia' not in st.session_state:
+    st.session_state.original_df_doskonalenia = None
 
-if 'previous_edited_rows' not in st.session_state:
-    st.session_state.previous_edited_rows = {}
+if 'previous_edited_rows_doskonalenia' not in st.session_state:
+    st.session_state.previous_edited_rows_doskonalenia = {}
 
 if 'company_names' not in st.session_state:
     st.session_state.company_names = []
@@ -98,48 +89,22 @@ def get_column_data_types():
         try:
             cursor = conn.cursor()
             
-            # Get data types for reklamacja table
-            cursor.execute("""
-                SELECT column_name, data_type 
-                FROM information_schema.columns 
-                WHERE table_name = 'reklamacja' AND table_schema = 'public'
-            """)
-            reklamacja_columns = {row[0]: row[1] for row in cursor.fetchall()}
+            # Get data types for relevant tables
+            tables = ['reklamacja', 'firma', 'detal', 'opis_problemu', 'dzialanie', 'pracownik', 
+                      'sprawdzanie_dzialan', 'slownik_dzial']
             
-            # Get data types for firma table
-            cursor.execute("""
-                SELECT column_name, data_type 
-                FROM information_schema.columns 
-                WHERE table_name = 'firma' AND table_schema = 'public'
-            """)
-            firma_columns = {row[0]: row[1] for row in cursor.fetchall()}
+            column_data_types = {}
             
-            # Get data types for detal table
-            cursor.execute("""
-                SELECT column_name, data_type 
-                FROM information_schema.columns 
-                WHERE table_name = 'detal' AND table_schema = 'public'
-            """)
-            detal_columns = {row[0]: row[1] for row in cursor.fetchall()}
-            
-            # Get data types for opis_problemu table
-            cursor.execute("""
-                SELECT column_name, data_type 
-                FROM information_schema.columns 
-                WHERE table_name = 'opis_problemu' AND table_schema = 'public'
-            """)
-            opis_problemu_columns = {row[0]: row[1] for row in cursor.fetchall()}
+            for table in tables:
+                cursor.execute(f"""
+                    SELECT column_name, data_type 
+                    FROM information_schema.columns 
+                    WHERE table_name = '{table}' AND table_schema = 'public'
+                """)
+                column_data_types[table] = {row[0]: row[1] for row in cursor.fetchall()}
             
             cursor.close()
             conn.close()
-            
-            # Combine all data types into a single dictionary
-            column_data_types = {
-                "reklamacja": reklamacja_columns,
-                "firma": firma_columns,
-                "detal": detal_columns,
-                "opis_problemu": opis_problemu_columns
-            }
             
             return column_data_types
         except Exception as e:
@@ -151,8 +116,8 @@ def get_column_data_types():
             return {}
     return {}
 
-# Function to get reklamacje data with related tables
-def get_reklamacje_data():
+# Function to get doskonalenia data with related tables
+def get_doskonalenia_data():
     conn = connect_to_db()
     if conn:
         try:
@@ -160,41 +125,47 @@ def get_reklamacje_data():
             
             query = """
             SELECT 
+                r.data_otwarcia AS data_otwarcia__reklamacja,
+                f.nazwa AS nazwa__firma,
+                d.kod AS kod__detal,
+                r.zlecenie AS zlecenie__reklamacja,
+                d.nazwa_wyrobu AS nazwa_wyrobu__detal,
+                d.oznaczenie AS oznaczenie__detal,
+                d.ilosc_zlecenie AS ilosc_zlecenie__detal,
+                d.ilosc_niezgodna AS ilosc_niezgodna__detal,
+                op.status AS status__opis_problemu,
+                op.miejsce_zatrzymania AS miejsce_zatrzymania__opis_problemu,
+                op.miejsce_powstania AS miejsce_powstania__opis_problemu,
+                op.opis AS opis__opis_problemu,
+                op.przyczyna_bezposrednia AS przyczyna_bezposrednia__opis_problemu,
+                dk.data_planowana AS data_planowana__dzialanie___dzialanie_korekcyjne,
+                dk.opis_dzialania AS opis_dzialania__dzialanie___dzialanie_korekcyjne,
+                dk.uwagi AS uwagi__dzialanie___dzialanie_korekcyjne,
+                p1.imie || ' ' || p1.nazwisko AS imie_nazwisko__pracownik___dzialanie_korygujace,
+                dkg.data_planowana AS data_planowana__dzialanie___dzialanie_korygujace,
+                dkg.uwagi AS uwagi__dzialanie___dzialanie_korygujace,
+                dkg.data_rzeczywista AS data_rzeczywista__dzialanie___dzialanie_korygujace,
+                p2.imie || ' ' || p2.nazwisko AS imie_nazwisko__pracownik___zatwierdzenie_dzialan,
+                zd.data AS data__sprawdzenie_dzialan___zatwierdzenie_dzialan,
+                CASE WHEN zd.status = true THEN 'Zakończone' ELSE 'W trakcie' END AS status__sprawdzenie_dzialan___zatwierdzenie_dzialan,
+                zd.uwagi AS uwagi__sprawdzenie_dzialan___zatwierdzenie_dzialan,
+                p3.imie || ' ' || p3.nazwisko AS imie_nazwisko__pracownik___skutecznosc_dzialan,
+                sd.data AS data__sprawdzenie_dzialan___skutecznosc_dzialan,
+                CASE WHEN sd.status = true THEN 'Zakończone' ELSE 'W trakcie' END AS status__sprawdzenie_dzialan___skutecznosc_dzialan,
+                sd.uwagi AS uwagi__sprawdzenie_dzialan___skutecznosc_dzialan,
+                dz.nazwa AS nazwa__slownik_dzial,
                 r.id AS id__reklamacja,
                 f.id AS id__firma,
                 d.id AS id__detal,
                 op.id AS id__opis_problemu,
-                f.kod AS kod__firma, 
-                f.nazwa AS nazwa__firma,
-                r.nr_reklamacji AS nr_reklamacji__reklamacja,
-                r.nr_protokolu AS nr_protokolu__reklamacja,
-                r.zlecenie AS zlecenie__reklamacja,
-                r.data_otwarcia AS data_otwarcia__reklamacja,
-                d.kod AS kod__detal,
-                r.typ_cylindra AS typ_cylindra__reklamacja,
-                d.oznaczenie AS oznaczenie__detal,
-                f.oznaczenie_klienta AS oznaczenie_klienta__firma,
-                d.ilosc_niezgodna AS ilosc_niezgodna__detal,
-                r.data_weryfikacji AS data_weryfikacji__reklamacja,
-                r.analiza_terminowosci_weryfikacji AS analiza_terminowosci_weryfikacji__reklamacja,
-                r.data_produkcji_silownika AS data_produkcji__reklamacja,
-                op.kod_przyczyny AS kod_przyczyny__opis_problemu,
-                op.przyczyna_ogolna AS przyczyna_ogolna__opis_problemu,
-                op.przyczyna_bezposrednia AS przyczyna_bezposrednia__opis_problemu,
-                op.uwagi AS uwagi__opis_problemu,
-                d.ilosc_uznanych AS ilosc_uznanych__detal,
-                d.ilosc_nieuznanych AS ilosc_nieuznanych__detal,
-                d.ilosc_nowych_uznanych AS ilosc_nowych_uznanych__detal,
-                d.ilosc_nowych_nieuznanych AS ilosc_nowych_nieuznanych__detal,
-                d.ilosc_rozliczona AS ilosc_rozliczona__detal,
-                d.ilosc_nieuznanych_naprawionych AS ilosc_nieuznanych_naprawionych__detal,
-                r.dokument_rozliczeniowy AS dokument_rozliczeniowy__reklamacja,
-                r.nr_dokumentu AS nr_dokumentu__reklamacja,
-                r.data_dokumentu AS data_dokumentu__reklamacja,
-                r.nr_magazynu AS nr_magazynu__reklamacja,
-                r.nr_listu_przewozowego AS nr_listu_przewozowego__reklamacja,
-                r.przewoznik AS przewoznik__reklamacja,
-                r.analiza_terminowosci_realizacji AS analiza_terminowosci_realizacji__reklamacja
+                dk.id AS id__dzialanie_korekcyjne,
+                dkg.id AS id__dzialanie_korygujace,
+                p1.id AS id__pracownik_1,
+                p2.id AS id__pracownik_2,
+                p3.id AS id__pracownik_3,
+                zd.id AS id__zatwierdzenie_dzialan,
+                sd.id AS id__skutecznosc_dzialan,
+                dz.id AS id__slownik_dzial
             FROM 
                 public.reklamacja r
             LEFT JOIN 
@@ -207,8 +178,36 @@ def get_reklamacje_data():
                 public.opis_problemu_reklamacja opr ON r.id = opr.reklamacja_id
             LEFT JOIN 
                 public.opis_problemu op ON opr.opis_problemu_id = op.id
-            WHERE 
-                r.typ_id = 1
+            LEFT JOIN 
+                public.dzialanie_opis_problemu dop_k ON op.id = dop_k.opis_problemu_id
+            LEFT JOIN 
+                public.dzialanie dk ON dop_k.dzialanie_id = dk.id AND dk.typ_id = 1
+            LEFT JOIN 
+                public.dzialanie_opis_problemu dop_kg ON op.id = dop_kg.opis_problemu_id
+            LEFT JOIN 
+                public.dzialanie dkg ON dop_kg.dzialanie_id = dkg.id AND dkg.typ_id = 2
+            LEFT JOIN 
+                public.dzialanie_pracownik dp1 ON dkg.id = dp1.dzialanie_id
+            LEFT JOIN 
+                public.pracownik p1 ON dp1.pracownik_id = p1.id
+            LEFT JOIN 
+                public.sprawdzanie_dzialan_opis_problemu sdop_z ON op.id = sdop_z.opis_problemu_id
+            LEFT JOIN 
+                public.sprawdzanie_dzialan zd ON sdop_z.sprawdzanie_dzialan_id = zd.id AND zd.typ_id = 1
+            LEFT JOIN 
+                public.sprawdzanie_dzialan_pracownik sdp2 ON zd.id = sdp2.sprawdzanie_dzialan_id
+            LEFT JOIN 
+                public.pracownik p2 ON sdp2.pracownik_id = p2.id
+            LEFT JOIN 
+                public.sprawdzanie_dzialan_opis_problemu sdop_s ON op.id = sdop_s.opis_problemu_id
+            LEFT JOIN 
+                public.sprawdzanie_dzialan sd ON sdop_s.sprawdzanie_dzialan_id = sd.id AND sd.typ_id = 2
+            LEFT JOIN 
+                public.sprawdzanie_dzialan_pracownik sdp3 ON sd.id = sdp3.sprawdzanie_dzialan_id
+            LEFT JOIN 
+                public.pracownik p3 ON sdp3.pracownik_id = p3.id
+            LEFT JOIN 
+                public.slownik_dzial dz ON p1.dzial_id = dz.id OR p2.dzial_id = dz.id OR p3.dzial_id = dz.id
             """
             
             cursor.execute(query)
@@ -234,7 +233,7 @@ def update_cell_in_database(row_idx, column_name, new_value):
     st.session_state.update_success = None
     st.session_state.update_logs = []
     
-    if st.session_state.original_df.empty:
+    if st.session_state.original_df_doskonalenia.empty:
         st.session_state.update_errors.append("No data to update.")
         return False
     
@@ -249,11 +248,11 @@ def update_cell_in_database(row_idx, column_name, new_value):
         cursor = conn.cursor()
         
         # Get the original row data
-        if row_idx not in st.session_state.original_df.index:
+        if row_idx not in st.session_state.original_df_doskonalenia.index:
             st.session_state.update_errors.append(f"Row index {row_idx} not found in original data.")
             return False
             
-        original_row = st.session_state.original_df.loc[row_idx]
+        original_row = st.session_state.original_df_doskonalenia.loc[row_idx]
         original_value = original_row[column_name]
         
         # Simple string comparison to detect any changes
@@ -267,6 +266,16 @@ def update_cell_in_database(row_idx, column_name, new_value):
             return False
             
         field_name, table_name = column_name.split("__")
+        
+        # Handle special case for nested table names (e.g., dzialanie___dzialanie_korekcyjne)
+        if "___" in table_name:
+            parts = table_name.split("___")
+            table_name = parts[-1]  # Use the last part as the actual table name
+            # Map the special table names to actual table names
+            if table_name == "dzialanie_korekcyjne" or table_name == "dzialanie_korygujace":
+                table_name = "dzialanie"
+            elif table_name == "zatwierdzenie_dzialan" or table_name == "skutecznosc_dzialan":
+                table_name = "sprawdzanie_dzialan"
         
         # Special case for company name changes
         if column_name == "nazwa__firma":
@@ -301,8 +310,8 @@ def update_cell_in_database(row_idx, column_name, new_value):
                 st.session_state.update_success = f"Updated reklamacja.firma_id to {new_company_id}"
                 
                 # Update the original dataframe with the new value
-                st.session_state.original_df.at[row_idx, column_name] = new_value
-                st.session_state.original_df.at[row_idx, "id__firma"] = new_company_id
+                st.session_state.original_df_doskonalenia.at[row_idx, column_name] = new_value
+                st.session_state.original_df_doskonalenia.at[row_idx, "id__firma"] = new_company_id
                 
                 cursor.close()
                 conn.close()
@@ -317,10 +326,42 @@ def update_cell_in_database(row_idx, column_name, new_value):
         if field_name == "data_produkcji" and table_name == "reklamacja":
             field_name = "data_produkcji_silownika"
         
+        # Handle status fields for sprawdzanie_dzialan
+        if field_name == "status" and table_name == "sprawdzanie_dzialan":
+            # Convert text status back to boolean
+            if new_value == "Zakończone":
+                new_value = True
+            elif new_value == "W trakcie":
+                new_value = False
+        
         # Get the record ID
         id_col = f"id__{table_name}"
+        
+        # Handle special case for dzialanie table with different types
+        if table_name == "dzialanie":
+            if "dzialanie_korekcyjne" in column_name:
+                id_col = "id__dzialanie_korekcyjne"
+            elif "dzialanie_korygujace" in column_name:
+                id_col = "id__dzialanie_korygujace"
+        
+        # Handle special case for sprawdzanie_dzialan table with different types
+        if table_name == "sprawdzanie_dzialan":
+            if "zatwierdzenie_dzialan" in column_name:
+                id_col = "id__zatwierdzenie_dzialan"
+            elif "skutecznosc_dzialan" in column_name:
+                id_col = "id__skutecznosc_dzialan"
+        
+        # Handle special case for pracownik tables with multiple instances
+        if table_name == "pracownik":
+            if "dzialanie_korygujace" in column_name:
+                id_col = "id__pracownik_1"
+            elif "zatwierdzenie_dzialan" in column_name:
+                id_col = "id__pracownik_2"
+            elif "skutecznosc_dzialan" in column_name:
+                id_col = "id__pracownik_3"
+        
         if id_col not in original_row or pd.isna(original_row[id_col]):
-            st.session_state.update_errors.append(f"No ID found for {table_name}")
+            st.session_state.update_errors.append(f"No ID found for {table_name} (column: {id_col})")
             return False
             
         record_id = int(original_row[id_col])
@@ -360,7 +401,7 @@ def update_cell_in_database(row_idx, column_name, new_value):
             st.session_state.update_success = f"Updated {table_name}.{field_name}"
             
             # Update the original dataframe with the new value
-            st.session_state.original_df.at[row_idx, column_name] = new_value
+            st.session_state.original_df_doskonalenia.at[row_idx, column_name] = new_value
             
             return True
             
@@ -402,15 +443,15 @@ def update_cell_in_database(row_idx, column_name, new_value):
 
 # Main app
 def main():
-    st.title("Reklamacje")
+    st.title("Doskonalenia")
     
     # Get data
-    if st.session_state.original_df is None:
-        st.session_state.original_df = get_reklamacje_data()
+    if 'original_df_doskonalenia' not in st.session_state or st.session_state.original_df_doskonalenia is None:
+        st.session_state.original_df_doskonalenia = get_doskonalenia_data()
     
     # Make a copy for editing
-    if st.session_state.edited_df is None:
-        st.session_state.edited_df = st.session_state.original_df.copy()
+    if 'edited_df_doskonalenia' not in st.session_state or st.session_state.edited_df_doskonalenia is None:
+        st.session_state.edited_df_doskonalenia = st.session_state.original_df_doskonalenia.copy()
     
     # Get column data types
     column_data_types = get_column_data_types()
@@ -418,47 +459,45 @@ def main():
     # Get company names for dropdown
     company_names = get_company_names()
     
-    if not st.session_state.original_df.empty:
+    if 'original_df_doskonalenia' in st.session_state and not st.session_state.original_df_doskonalenia.empty:
         # Define column configurations with enhanced headers
         column_config = {}
         
         # Column name mapping for display
         column_display_names = {
-            "kod__firma": {"table": "firma", "column": "kod"},
-            "nazwa__firma": {"table": "firma", "column": "nazwa"},
-            "nr_reklamacji__reklamacja": {"table": "reklamacja", "column": "nr_reklamacji"},
-            "nr_protokolu__reklamacja": {"table": "reklamacja", "column": "nr_protokolu"},
-            "zlecenie__reklamacja": {"table": "reklamacja", "column": "zlecenie"},
             "data_otwarcia__reklamacja": {"table": "reklamacja", "column": "data_otwarcia"},
+            "nazwa__firma": {"table": "firma", "column": "nazwa"},
             "kod__detal": {"table": "detal", "column": "kod"},
-            "typ_cylindra__reklamacja": {"table": "reklamacja", "column": "typ_cylindra"},
+            "zlecenie__reklamacja": {"table": "reklamacja", "column": "zlecenie"},
+            "nazwa_wyrobu__detal": {"table": "detal", "column": "nazwa_wyrobu"},
             "oznaczenie__detal": {"table": "detal", "column": "oznaczenie"},
-            "oznaczenie_klienta__firma": {"table": "firma", "column": "oznaczenie_klienta"},
+            "ilosc_zlecenie__detal": {"table": "detal", "column": "ilosc_zlecenie"},
             "ilosc_niezgodna__detal": {"table": "detal", "column": "ilosc_niezgodna"},
-            "data_weryfikacji__reklamacja": {"table": "reklamacja", "column": "data_weryfikacji"},
-            "analiza_terminowosci_weryfikacji__reklamacja": {"table": "reklamacja", "column": "analiza_terminowosci_weryfikacji"},
-            "data_produkcji__reklamacja": {"table": "reklamacja", "column": "data_produkcji_silownika"},
-            "kod_przyczyny__opis_problemu": {"table": "opis_problemu", "column": "kod_przyczyny"},
-            "przyczyna_ogolna__opis_problemu": {"table": "opis_problemu", "column": "przyczyna_ogolna"},
+            "status__opis_problemu": {"table": "opis_problemu", "column": "status"},
+            "miejsce_zatrzymania__opis_problemu": {"table": "opis_problemu", "column": "miejsce_zatrzymania"},
+            "miejsce_powstania__opis_problemu": {"table": "opis_problemu", "column": "miejsce_powstania"},
+            "opis__opis_problemu": {"table": "opis_problemu", "column": "opis"},
             "przyczyna_bezposrednia__opis_problemu": {"table": "opis_problemu", "column": "przyczyna_bezposrednia"},
-            "uwagi__opis_problemu": {"table": "opis_problemu", "column": "uwagi"},
-            "ilosc_uznanych__detal": {"table": "detal", "column": "ilosc_uznanych"},
-            "ilosc_nieuznanych__detal": {"table": "detal", "column": "ilosc_nieuznanych"},
-            "ilosc_nowych_uznanych__detal": {"table": "detal", "column": "ilosc_nowych_uznanych"},
-            "ilosc_nowych_nieuznanych__detal": {"table": "detal", "column": "ilosc_nowych_nieuznanych"},
-            "ilosc_rozliczona__detal": {"table": "detal", "column": "ilosc_rozliczona"},
-            "ilosc_nieuznanych_naprawionych__detal": {"table": "detal", "column": "ilosc_nieuznanych_naprawionych"},
-            "dokument_rozliczeniowy__reklamacja": {"table": "reklamacja", "column": "dokument_rozliczeniowy"},
-            "nr_dokumentu__reklamacja": {"table": "reklamacja", "column": "nr_dokumentu"},
-            "data_dokumentu__reklamacja": {"table": "reklamacja", "column": "data_dokumentu"},
-            "nr_magazynu__reklamacja": {"table": "reklamacja", "column": "nr_magazynu"},
-            "nr_listu_przewozowego__reklamacja": {"table": "reklamacja", "column": "nr_listu_przewozowego"},
-            "przewoznik__reklamacja": {"table": "reklamacja", "column": "przewoznik"},
-            "analiza_terminowosci_realizacji__reklamacja": {"table": "reklamacja", "column": "analiza_terminowosci_realizacji"}
+            "data_planowana__dzialanie___dzialanie_korekcyjne": {"table": "dzialanie", "column": "data_planowana"},
+            "opis_dzialania__dzialanie___dzialanie_korekcyjne": {"table": "dzialanie", "column": "opis_dzialania"},
+            "uwagi__dzialanie___dzialanie_korekcyjne": {"table": "dzialanie", "column": "uwagi"},
+            "imie_nazwisko__pracownik___dzialanie_korygujace": {"table": "pracownik", "column": "imie_nazwisko"},
+            "data_planowana__dzialanie___dzialanie_korygujace": {"table": "dzialanie", "column": "data_planowana"},
+            "uwagi__dzialanie___dzialanie_korygujace": {"table": "dzialanie", "column": "uwagi"},
+            "data_rzeczywista__dzialanie___dzialanie_korygujace": {"table": "dzialanie", "column": "data_rzeczywista"},
+            "imie_nazwisko__pracownik___zatwierdzenie_dzialan": {"table": "pracownik", "column": "imie_nazwisko"},
+            "data__sprawdzenie_dzialan___zatwierdzenie_dzialan": {"table": "sprawdzanie_dzialan", "column": "data"},
+            "status__sprawdzenie_dzialan___zatwierdzenie_dzialan": {"table": "sprawdzanie_dzialan", "column": "status"},
+            "uwagi__sprawdzenie_dzialan___zatwierdzenie_dzialan": {"table": "sprawdzanie_dzialan", "column": "uwagi"},
+            "imie_nazwisko__pracownik___skutecznosc_dzialan": {"table": "pracownik", "column": "imie_nazwisko"},
+            "data__sprawdzenie_dzialan___skutecznosc_dzialan": {"table": "sprawdzanie_dzialan", "column": "data"},
+            "status__sprawdzenie_dzialan___skutecznosc_dzialan": {"table": "sprawdzanie_dzialan", "column": "status"},
+            "uwagi__sprawdzenie_dzialan___skutecznosc_dzialan": {"table": "sprawdzanie_dzialan", "column": "uwagi"},
+            "nazwa__slownik_dzial": {"table": "slownik_dzial", "column": "nazwa"}
         }
         
         # Create column config with enhanced headers
-        for col_name in st.session_state.original_df.columns:
+        for col_name in st.session_state.original_df_doskonalenia.columns:
             if col_name in column_display_names:
                 table_name = column_display_names[col_name]["table"]
                 column_name = column_display_names[col_name]["column"]
@@ -479,63 +518,61 @@ def main():
                     )
                 elif "data" in col_name or "data_" in col_name:
                     column_config[col_name] = st.column_config.DateColumn(header)
-                elif "ilosc" in col_name or "analiza" in col_name:
+                elif "ilosc" in col_name:
                     column_config[col_name] = st.column_config.NumberColumn(header)
-                elif col_name == "dokument_rozliczeniowy__reklamacja":
+                elif "status" in col_name:
                     column_config[col_name] = st.column_config.SelectboxColumn(
                         header,
-                        options=["korekta", "WZ", "złom", "ZW", "ZW złom"]
+                        options=["Otwarte", "W trakcie", "Zakończone"]
                     )
                 else:
                     column_config[col_name] = st.column_config.Column(header)
         
         # Display data editor with the specified column order
         column_order = [
-            "kod__firma", "nazwa__firma", "nr_reklamacji__reklamacja",
-            "nr_protokolu__reklamacja", "zlecenie__reklamacja",
-            "data_otwarcia__reklamacja", "kod__detal", "typ_cylindra__reklamacja",
-            "oznaczenie__detal", "oznaczenie_klienta__firma",
-            "ilosc_niezgodna__detal", "data_weryfikacji__reklamacja",
-            "analiza_terminowosci_weryfikacji__reklamacja",
-            "data_produkcji__reklamacja", "kod_przyczyny__opis_problemu",
-            "przyczyna_ogolna__opis_problemu",
-            "przyczyna_bezposrednia__opis_problemu", "uwagi__opis_problemu",
-            "ilosc_uznanych__detal", "ilosc_nieuznanych__detal",
-            "ilosc_nowych_uznanych__detal", "ilosc_nowych_nieuznanych__detal",
-            "ilosc_rozliczona__detal", "ilosc_nieuznanych_naprawionych__detal",
-            "dokument_rozliczeniowy__reklamacja", "nr_dokumentu__reklamacja",
-            "data_dokumentu__reklamacja", "nr_magazynu__reklamacja",
-            "nr_listu_przewozowego__reklamacja", "przewoznik__reklamacja",
-            "analiza_terminowosci_realizacji__reklamacja"
+            'data_otwarcia__reklamacja', 'nazwa__firma', 'kod__detal', 'zlecenie__reklamacja',
+            'nazwa_wyrobu__detal', 'oznaczenie__detal', 'ilosc_zlecenie__detal', 'ilosc_niezgodna__detal',
+            'status__opis_problemu', 'miejsce_zatrzymania__opis_problemu', 'miejsce_powstania__opis_problemu',
+            'opis__opis_problemu', 'przyczyna_bezposrednia__opis_problemu',
+            'data_planowana__dzialanie___dzialanie_korekcyjne', 'opis_dzialania__dzialanie___dzialanie_korekcyjne',
+            'uwagi__dzialanie___dzialanie_korekcyjne', 'imie_nazwisko__pracownik___dzialanie_korygujace',
+            'data_planowana__dzialanie___dzialanie_korygujace', 'uwagi__dzialanie___dzialanie_korygujace',
+            'data_rzeczywista__dzialanie___dzialanie_korygujace', 'imie_nazwisko__pracownik___zatwierdzenie_dzialan',
+            'data__sprawdzenie_dzialan___zatwierdzenie_dzialan', 'status__sprawdzenie_dzialan___zatwierdzenie_dzialan',
+            'uwagi__sprawdzenie_dzialan___zatwierdzenie_dzialan', 'imie_nazwisko__pracownik___skutecznosc_dzialan',
+            'data__sprawdzenie_dzialan___skutecznosc_dzialan', 'status__sprawdzenie_dzialan___skutecznosc_dzialan',
+            'uwagi__sprawdzenie_dzialan___skutecznosc_dzialan', 'nazwa__slownik_dzial'
         ]
         
+        # Filter column_order to only include columns that exist in the dataframe
+        visible_columns = [col for col in column_order if col in st.session_state.original_df_doskonalenia.columns]
+        
         # Hide ID columns from display but keep them for updates
-        visible_columns = [col for col in column_order if col in st.session_state.original_df.columns]
-        id_columns = [col for col in st.session_state.original_df.columns if col.startswith("id__")]
+        id_columns = [col for col in st.session_state.original_df_doskonalenia.columns if col.startswith("id__")]
         
         # Add a container for the data editor
         with st.container():
             # Make the data editor editable
             edited_df = st.data_editor(
-                st.session_state.edited_df[visible_columns],
+                st.session_state.edited_df_doskonalenia[visible_columns],
                 column_config=column_config,
                 hide_index=True,
-                key="data_editor",
+                key="data_editor_doskonalenia",
                 use_container_width=True,
                 num_rows="fixed"
             )
             
             # Check for changes and update database
-            if "edited_rows" in st.session_state.data_editor:
-                current_edited_rows = st.session_state.data_editor["edited_rows"]
+            if "edited_rows" in st.session_state.data_editor_doskonalenia:
+                current_edited_rows = st.session_state.data_editor_doskonalenia["edited_rows"]
                 
                 # Find new edits by comparing with previous edited rows
                 for idx, changed_values in current_edited_rows.items():
                     row_idx = int(idx)
                     
                     # Check if this row was previously edited
-                    if idx in st.session_state.previous_edited_rows:
-                        prev_changes = st.session_state.previous_edited_rows[idx]
+                    if idx in st.session_state.previous_edited_rows_doskonalenia:
+                        prev_changes = st.session_state.previous_edited_rows_doskonalenia[idx]
                         
                         # Find new changes in this row
                         for col_name, new_value in changed_values.items():
@@ -548,7 +585,7 @@ def main():
                             update_cell_in_database(row_idx, col_name, new_value)
                 
                 # Save current edited rows for next comparison
-                st.session_state.previous_edited_rows = current_edited_rows.copy()
+                st.session_state.previous_edited_rows_doskonalenia = current_edited_rows.copy()
         
         # Display update information below the table
         st.write("---")
@@ -575,22 +612,13 @@ def main():
                             st.write(f"  - Błąd: {log['error']}")
             
         # Add a refresh button
-        if st.button("Odśwież dane"):
-            st.session_state.original_df = get_reklamacje_data()
-            st.session_state.edited_df = st.session_state.original_df.copy()
+        if st.button("Odśwież dane", key="refresh_doskonalenia"):
+            st.session_state.original_df_doskonalenia = get_doskonalenia_data()
+            st.session_state.edited_df_doskonalenia = st.session_state.original_df_doskonalenia.copy()
             st.session_state.update_errors = []
             st.session_state.update_success = "Dane odświeżone"
             st.session_state.update_logs = []
-            st.session_state.previous_edited_rows = {}
+            st.session_state.previous_edited_rows_doskonalenia = {}
             st.rerun()
     else:
-        st.warning("Brak danych do wyświetlenia.")
-
-# Display selected page
-if page == "Reklamacje":
-    reklamacje.main()
-elif page == "Doskonalenia":
-    doskonalenia.main()
-
-if __name__ == "__main__":
-    pass
+        st.warning("Brak danych do wyświetlenia.") 

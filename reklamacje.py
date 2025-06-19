@@ -3,8 +3,6 @@ import psycopg2
 import pandas as pd
 from psycopg2.extras import RealDictCursor
 import time
-import reklamacje
-import doskonalenia
 
 # Database connection parameters
 db_params = {
@@ -14,13 +12,6 @@ db_params = {
     "host": "localhost",
     "port": "5432"
 }
-
-# Page configuration
-st.set_page_config(page_title="Zehs - System jakości", layout="wide")
-
-# Create sidebar navigation
-st.sidebar.title("Nawigacja")
-page = st.sidebar.radio("Wybierz stronę:", ["Reklamacje", "Doskonalenia"])
 
 # Initialize session state for error messages
 if 'update_errors' not in st.session_state:
@@ -33,14 +24,14 @@ if 'update_logs' not in st.session_state:
     st.session_state.update_logs = []
 
 # Initialize session state for data tracking
-if 'edited_df' not in st.session_state:
-    st.session_state.edited_df = None
+if 'edited_df_reklamacje' not in st.session_state:
+    st.session_state.edited_df_reklamacje = None
 
-if 'original_df' not in st.session_state:
-    st.session_state.original_df = None
+if 'original_df_reklamacje' not in st.session_state:
+    st.session_state.original_df_reklamacje = None
 
-if 'previous_edited_rows' not in st.session_state:
-    st.session_state.previous_edited_rows = {}
+if 'previous_edited_rows_reklamacje' not in st.session_state:
+    st.session_state.previous_edited_rows_reklamacje = {}
 
 if 'company_names' not in st.session_state:
     st.session_state.company_names = []
@@ -234,7 +225,7 @@ def update_cell_in_database(row_idx, column_name, new_value):
     st.session_state.update_success = None
     st.session_state.update_logs = []
     
-    if st.session_state.original_df.empty:
+    if 'original_df_reklamacje' not in st.session_state or st.session_state.original_df_reklamacje.empty:
         st.session_state.update_errors.append("No data to update.")
         return False
     
@@ -249,11 +240,11 @@ def update_cell_in_database(row_idx, column_name, new_value):
         cursor = conn.cursor()
         
         # Get the original row data
-        if row_idx not in st.session_state.original_df.index:
+        if row_idx not in st.session_state.original_df_reklamacje.index:
             st.session_state.update_errors.append(f"Row index {row_idx} not found in original data.")
             return False
             
-        original_row = st.session_state.original_df.loc[row_idx]
+        original_row = st.session_state.original_df_reklamacje.loc[row_idx]
         original_value = original_row[column_name]
         
         # Simple string comparison to detect any changes
@@ -301,8 +292,8 @@ def update_cell_in_database(row_idx, column_name, new_value):
                 st.session_state.update_success = f"Updated reklamacja.firma_id to {new_company_id}"
                 
                 # Update the original dataframe with the new value
-                st.session_state.original_df.at[row_idx, column_name] = new_value
-                st.session_state.original_df.at[row_idx, "id__firma"] = new_company_id
+                st.session_state.original_df_reklamacje.at[row_idx, column_name] = new_value
+                st.session_state.original_df_reklamacje.at[row_idx, "id__firma"] = new_company_id
                 
                 cursor.close()
                 conn.close()
@@ -360,7 +351,7 @@ def update_cell_in_database(row_idx, column_name, new_value):
             st.session_state.update_success = f"Updated {table_name}.{field_name}"
             
             # Update the original dataframe with the new value
-            st.session_state.original_df.at[row_idx, column_name] = new_value
+            st.session_state.original_df_reklamacje.at[row_idx, column_name] = new_value
             
             return True
             
@@ -405,12 +396,12 @@ def main():
     st.title("Reklamacje")
     
     # Get data
-    if st.session_state.original_df is None:
-        st.session_state.original_df = get_reklamacje_data()
+    if 'original_df_reklamacje' not in st.session_state or st.session_state.original_df_reklamacje is None:
+        st.session_state.original_df_reklamacje = get_reklamacje_data()
     
     # Make a copy for editing
-    if st.session_state.edited_df is None:
-        st.session_state.edited_df = st.session_state.original_df.copy()
+    if 'edited_df_reklamacje' not in st.session_state or st.session_state.edited_df_reklamacje is None:
+        st.session_state.edited_df_reklamacje = st.session_state.original_df_reklamacje.copy()
     
     # Get column data types
     column_data_types = get_column_data_types()
@@ -418,7 +409,7 @@ def main():
     # Get company names for dropdown
     company_names = get_company_names()
     
-    if not st.session_state.original_df.empty:
+    if 'original_df_reklamacje' in st.session_state and not st.session_state.original_df_reklamacje.empty:
         # Define column configurations with enhanced headers
         column_config = {}
         
@@ -458,7 +449,7 @@ def main():
         }
         
         # Create column config with enhanced headers
-        for col_name in st.session_state.original_df.columns:
+        for col_name in st.session_state.original_df_reklamacje.columns:
             if col_name in column_display_names:
                 table_name = column_display_names[col_name]["table"]
                 column_name = column_display_names[col_name]["column"]
@@ -509,33 +500,35 @@ def main():
             "analiza_terminowosci_realizacji__reklamacja"
         ]
         
+        # Filter column_order to only include columns that exist in the dataframe
+        visible_columns = [col for col in column_order if col in st.session_state.original_df_reklamacje.columns]
+        
         # Hide ID columns from display but keep them for updates
-        visible_columns = [col for col in column_order if col in st.session_state.original_df.columns]
-        id_columns = [col for col in st.session_state.original_df.columns if col.startswith("id__")]
+        id_columns = [col for col in st.session_state.original_df_reklamacje.columns if col.startswith("id__")]
         
         # Add a container for the data editor
         with st.container():
             # Make the data editor editable
             edited_df = st.data_editor(
-                st.session_state.edited_df[visible_columns],
+                st.session_state.edited_df_reklamacje[visible_columns],
                 column_config=column_config,
                 hide_index=True,
-                key="data_editor",
+                key="data_editor_reklamacje",
                 use_container_width=True,
                 num_rows="fixed"
             )
             
             # Check for changes and update database
-            if "edited_rows" in st.session_state.data_editor:
-                current_edited_rows = st.session_state.data_editor["edited_rows"]
+            if "edited_rows" in st.session_state.data_editor_reklamacje:
+                current_edited_rows = st.session_state.data_editor_reklamacje["edited_rows"]
                 
                 # Find new edits by comparing with previous edited rows
                 for idx, changed_values in current_edited_rows.items():
                     row_idx = int(idx)
                     
                     # Check if this row was previously edited
-                    if idx in st.session_state.previous_edited_rows:
-                        prev_changes = st.session_state.previous_edited_rows[idx]
+                    if idx in st.session_state.previous_edited_rows_reklamacje:
+                        prev_changes = st.session_state.previous_edited_rows_reklamacje[idx]
                         
                         # Find new changes in this row
                         for col_name, new_value in changed_values.items():
@@ -548,7 +541,7 @@ def main():
                             update_cell_in_database(row_idx, col_name, new_value)
                 
                 # Save current edited rows for next comparison
-                st.session_state.previous_edited_rows = current_edited_rows.copy()
+                st.session_state.previous_edited_rows_reklamacje = current_edited_rows.copy()
         
         # Display update information below the table
         st.write("---")
@@ -575,22 +568,13 @@ def main():
                             st.write(f"  - Błąd: {log['error']}")
             
         # Add a refresh button
-        if st.button("Odśwież dane"):
-            st.session_state.original_df = get_reklamacje_data()
-            st.session_state.edited_df = st.session_state.original_df.copy()
+        if st.button("Odśwież dane", key="refresh_reklamacje"):
+            st.session_state.original_df_reklamacje = get_reklamacje_data()
+            st.session_state.edited_df_reklamacje = st.session_state.original_df_reklamacje.copy()
             st.session_state.update_errors = []
             st.session_state.update_success = "Dane odświeżone"
             st.session_state.update_logs = []
-            st.session_state.previous_edited_rows = {}
+            st.session_state.previous_edited_rows_reklamacje = {}
             st.rerun()
     else:
-        st.warning("Brak danych do wyświetlenia.")
-
-# Display selected page
-if page == "Reklamacje":
-    reklamacje.main()
-elif page == "Doskonalenia":
-    doskonalenia.main()
-
-if __name__ == "__main__":
-    pass
+        st.warning("Brak danych do wyświetlenia.") 
