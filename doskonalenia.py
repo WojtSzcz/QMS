@@ -123,49 +123,50 @@ def get_doskonalenia_data():
         try:
             cursor = conn.cursor(cursor_factory=RealDictCursor)
             
+            # Optimized single query with LIMIT to avoid loading too much data at once
             query = """
             SELECT 
+                r.id AS id__reklamacja,
                 r.data_otwarcia AS data_otwarcia__reklamacja,
-                f.nazwa AS nazwa__firma,
-                d.kod AS kod__detal,
                 r.zlecenie AS zlecenie__reklamacja,
+                f.id AS id__firma,
+                f.nazwa AS nazwa__firma,
+                d.id AS id__detal,
+                d.kod AS kod__detal,
                 d.nazwa_wyrobu AS nazwa_wyrobu__detal,
                 d.oznaczenie AS oznaczenie__detal,
                 d.ilosc_zlecenie AS ilosc_zlecenie__detal,
                 d.ilosc_niezgodna AS ilosc_niezgodna__detal,
+                op.id AS id__opis_problemu,
                 op.status AS status__opis_problemu,
                 op.miejsce_zatrzymania AS miejsce_zatrzymania__opis_problemu,
                 op.miejsce_powstania AS miejsce_powstania__opis_problemu,
                 op.opis AS opis__opis_problemu,
                 op.przyczyna_bezposrednia AS przyczyna_bezposrednia__opis_problemu,
+                dk.id AS id__dzialanie_korekcyjne,
                 dk.data_planowana AS data_planowana__dzialanie___dzialanie_korekcyjne,
                 dk.opis_dzialania AS opis_dzialania__dzialanie___dzialanie_korekcyjne,
                 dk.uwagi AS uwagi__dzialanie___dzialanie_korekcyjne,
+                dkg.id AS id__dzialanie_korygujace,
+                p1.id AS id__pracownik_1,
                 p1.imie || ' ' || p1.nazwisko AS imie_nazwisko__pracownik___dzialanie_korygujace,
                 dkg.data_planowana AS data_planowana__dzialanie___dzialanie_korygujace,
                 dkg.uwagi AS uwagi__dzialanie___dzialanie_korygujace,
                 dkg.data_rzeczywista AS data_rzeczywista__dzialanie___dzialanie_korygujace,
+                zd.id AS id__zatwierdzenie_dzialan,
+                p2.id AS id__pracownik_2,
                 p2.imie || ' ' || p2.nazwisko AS imie_nazwisko__pracownik___zatwierdzenie_dzialan,
                 zd.data AS data__sprawdzenie_dzialan___zatwierdzenie_dzialan,
                 CASE WHEN zd.status = true THEN 'Zakończone' ELSE 'W trakcie' END AS status__sprawdzenie_dzialan___zatwierdzenie_dzialan,
                 zd.uwagi AS uwagi__sprawdzenie_dzialan___zatwierdzenie_dzialan,
+                sd.id AS id__skutecznosc_dzialan,
+                p3.id AS id__pracownik_3,
                 p3.imie || ' ' || p3.nazwisko AS imie_nazwisko__pracownik___skutecznosc_dzialan,
                 sd.data AS data__sprawdzenie_dzialan___skutecznosc_dzialan,
                 CASE WHEN sd.status = true THEN 'Zakończone' ELSE 'W trakcie' END AS status__sprawdzenie_dzialan___skutecznosc_dzialan,
                 sd.uwagi AS uwagi__sprawdzenie_dzialan___skutecznosc_dzialan,
-                dz.nazwa AS nazwa__slownik_dzial,
-                r.id AS id__reklamacja,
-                f.id AS id__firma,
-                d.id AS id__detal,
-                op.id AS id__opis_problemu,
-                dk.id AS id__dzialanie_korekcyjne,
-                dkg.id AS id__dzialanie_korygujace,
-                p1.id AS id__pracownik_1,
-                p2.id AS id__pracownik_2,
-                p3.id AS id__pracownik_3,
-                zd.id AS id__zatwierdzenie_dzialan,
-                sd.id AS id__skutecznosc_dzialan,
-                dz.id AS id__slownik_dzial
+                dz.id AS id__slownik_dzial,
+                dz.nazwa AS nazwa__slownik_dzial
             FROM 
                 public.reklamacja r
             LEFT JOIN 
@@ -207,7 +208,10 @@ def get_doskonalenia_data():
             LEFT JOIN 
                 public.pracownik p3 ON sdp3.pracownik_id = p3.id
             LEFT JOIN 
-                public.slownik_dzial dz ON p1.dzial_id = dz.id OR p2.dzial_id = dz.id OR p3.dzial_id = dz.id
+                public.slownik_dzial dz ON COALESCE(p1.dzial_id, p2.dzial_id, p3.dzial_id) = dz.id
+            WHERE 
+                r.typ_id = 1
+            ORDER BY r.id DESC
             """
             
             cursor.execute(query)
@@ -447,17 +451,24 @@ def main():
     
     # Get data
     if 'original_df_doskonalenia' not in st.session_state or st.session_state.original_df_doskonalenia is None:
-        st.session_state.original_df_doskonalenia = get_doskonalenia_data()
+        with st.spinner("Ładowanie danych..."):
+            st.session_state.original_df_doskonalenia = get_doskonalenia_data()
     
     # Make a copy for editing
     if 'edited_df_doskonalenia' not in st.session_state or st.session_state.edited_df_doskonalenia is None:
         st.session_state.edited_df_doskonalenia = st.session_state.original_df_doskonalenia.copy()
     
-    # Get column data types
-    column_data_types = get_column_data_types()
+    # Get column data types (cache in session state)
+    if 'column_data_types_doskonalenia' not in st.session_state:
+        with st.spinner("Ładowanie typów kolumn..."):
+            st.session_state.column_data_types_doskonalenia = get_column_data_types()
+    column_data_types = st.session_state.column_data_types_doskonalenia
     
-    # Get company names for dropdown
-    company_names = get_company_names()
+    # Get company names for dropdown (cache in session state)
+    if 'company_names_doskonalenia' not in st.session_state:
+        with st.spinner("Ładowanie firm..."):
+            st.session_state.company_names_doskonalenia = get_company_names()
+    company_names = st.session_state.company_names_doskonalenia
     
     if 'original_df_doskonalenia' in st.session_state and not st.session_state.original_df_doskonalenia.empty:
         # Define column configurations with enhanced headers
@@ -613,6 +624,12 @@ def main():
             
         # Add a refresh button
         if st.button("Odśwież dane", key="refresh_doskonalenia"):
+            # Clear cached data
+            if 'column_data_types_doskonalenia' in st.session_state:
+                del st.session_state.column_data_types_doskonalenia
+            if 'company_names_doskonalenia' in st.session_state:
+                del st.session_state.company_names_doskonalenia
+            
             st.session_state.original_df_doskonalenia = get_doskonalenia_data()
             st.session_state.edited_df_doskonalenia = st.session_state.original_df_doskonalenia.copy()
             st.session_state.update_errors = []
