@@ -5,6 +5,8 @@ from psycopg2.extras import RealDictCursor
 import time
 import reklamacje
 import doskonalenia
+import raporty_8d
+import audyty
 
 # Database connection parameters
 db_params = {
@@ -20,7 +22,7 @@ st.set_page_config(page_title="Zehs - System jakości", layout="wide")
 
 # Create sidebar navigation
 st.sidebar.title("Nawigacja")
-page = st.sidebar.radio("Wybierz stronę:", ["Reklamacje", "Doskonalenia"])
+page = st.sidebar.radio("Wybierz stronę:", ["Reklamacje", "Doskonalenia", "Raporty 8D", "Audyty"])
 
 # Initialize session state for error messages
 if 'update_errors' not in st.session_state:
@@ -591,6 +593,10 @@ if page == "Reklamacje":
     reklamacje.main()
 elif page == "Doskonalenia":
     doskonalenia.main()
+elif page == "Raporty 8D":
+    raporty_8d.main()
+elif page == "Audyty":
+    audyty.main()
 
 if __name__ == "__main__":
     pass
