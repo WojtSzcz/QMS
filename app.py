@@ -3,18 +3,24 @@ import psycopg2
 import pandas as pd
 from psycopg2.extras import RealDictCursor
 import time
-import reklamacje
-import doskonalenia
-import raporty_8d
-import audyty
+import os
+from dotenv import load_dotenv
+
+# Load environment variables
+load_dotenv()
+
+from Raporty import reklamacje
+from Raporty import doskonalenia
+from Raporty import raporty_8d
+from Raporty import audyty
 
 # Database connection parameters
 db_params = {
-    "dbname": "zehs_db_full",
-    "user": "postgres",
-    "password": "NoisePattern5123",
-    "host": "localhost",
-    "port": "5432"
+    "dbname": os.getenv("DB_NAME"),
+    "user": os.getenv("DB_USER"),
+    "password": os.getenv("DB_PASSWORD"),
+    "host": os.getenv("DB_HOST"),
+    "port": os.getenv("DB_PORT")
 }
 
 # Page configuration

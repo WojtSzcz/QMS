@@ -1,18 +1,49 @@
 name: quality_monitor
 channels:
   - conda-forge
-  - azureml
+  - defaults
 dependencies:
+  # Python
   - python=3.11.11
-  - jupyterlab=4.4.0
+  
+  # Core data libraries
   - pandas=2.2.3
+  - numpy=2.0.1
+  
+  # Streamlit and web framework
+  - streamlit=1.32.0
+  
+  # Database connectivity
+  - psycopg2=2.9.7
+  - sqlalchemy=2.0.23
+  
+  # Environment management
+  - python-dotenv=1.0.0
+  
+  # Data visualization (optional but useful)
   - matplotlib=3.10.1
   - seaborn=0.13.2
-  - numpy=2.0.1
   - plotly=6.0.1
-  - itables=2.3.0
-  - streamlit=1.32.0
+  
+  # Excel/Office file handling
   - openpyxl=3.1.2
+  - xlsxwriter=3.1.9
+  
+  # Development tools
+  - jupyterlab=4.4.0
+  - ipython=8.18.1
+  
+  # Interactive tables
+  - itables=2.3.0
+  
+  # Date/time handling
+  - python-dateutil=2.8.2
+  
+  # Additional utilities
+  - requests=2.31.0
+  - urllib3=2.0.7
+  
+  # Azure ML (if needed for deployment)
   - azureml-core
   - azureml-dataset-runtime
   - azureml-defaults
