@@ -1,6 +1,8 @@
 import psycopg2
 from psycopg2.extras import RealDictCursor
 import streamlit as st
+import pandas as pd
+import numpy as np
 import os
 from dotenv import load_dotenv
 
@@ -125,6 +127,46 @@ def execute_query(query, params=None):
     except Exception as e:
         st.error(f"Error executing query: {e}")
         return pd.DataFrame()
+    finally:
+        conn.close()
+
+# Database update function
+def update_database_cell(table_name, field_name, record_id, new_value):
+    """Generic function to update a single cell in the database"""
+    conn = get_db_connection()
+    if not conn:
+        return False, "Failed to connect to database"
+    
+    try:
+        with conn.cursor() as cursor:
+            # Handle special value types and convert numpy types to Python native types
+            if pd.isna(new_value) or new_value == '' or new_value is None:
+                param_value = None
+            elif hasattr(new_value, 'date'):  # pandas Timestamp
+                param_value = new_value.date()
+            elif isinstance(new_value, (np.integer, np.floating, np.bool_)):  # numpy scalar types
+                param_value = new_value.item()  # Convert to Python native type
+            elif hasattr(new_value, 'item') and hasattr(new_value, 'dtype'):  # other numpy types
+                param_value = new_value.item()
+            else:
+                param_value = new_value
+            
+            # Also convert record_id if it's a numpy type
+            if isinstance(record_id, (np.integer, np.floating)):
+                record_id = record_id.item()
+            elif hasattr(record_id, 'item') and hasattr(record_id, 'dtype'):
+                record_id = record_id.item()
+            
+            # Create and execute SQL statement
+            sql = f"UPDATE public.{table_name} SET {field_name} = %s WHERE id = %s"
+            cursor.execute(sql, [param_value, record_id])
+            conn.commit()
+            
+            return True, f"Successfully updated {table_name}.{field_name}"
+            
+    except Exception as e:
+        conn.rollback()
+        return False, f"Error updating {table_name}.{field_name}: {str(e)}"
     finally:
         conn.close()
 

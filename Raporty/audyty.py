@@ -6,11 +6,63 @@ import os
 
 # Add parent directory to path to import db_connect
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from db_connect import execute_query, load_audit_types, load_employee_names, load_department_names, load_opis_problemu_status_options, load_miejsce_zatrzymania_options, load_miejsce_powstania_options
+from db_connect import execute_query, load_audit_types, load_employee_names, load_department_names, update_database_cell, load_opis_problemu_status_options, load_miejsce_zatrzymania_options, load_miejsce_powstania_options
 
 # Initialize session state for update tracking
 if 'audyty_update_status' not in st.session_state:
     st.session_state.audyty_update_status = []
+
+if 'audyty_original_df' not in st.session_state:
+    st.session_state.audyty_original_df = None
+
+def update_audyty_database(row_idx, column_name, new_value, original_df):
+    """Handle database updates for audyty - primarily audyt table"""
+    try:
+        # Get the audyt ID for this row
+        audyt_id_query = f"""
+            SELECT a.id as audyt_id
+            FROM audyt a
+            LEFT JOIN slownik_typ_audytu sta ON a.typ_id = sta.id
+            ORDER BY a.data DESC
+            LIMIT 1 OFFSET {row_idx}
+        """
+        
+        id_result = execute_query(audyt_id_query)
+        if id_result.empty:
+            return False, "Could not find audyt record to update"
+        
+        audyt_id = id_result.iloc[0]['audyt_id']
+        
+        # Parse column name to determine field
+        column_parts = column_name.split('. ', 1)[1]  # Remove number prefix
+        
+        # Map columns to database fields
+        if 'audyt' in column_parts:
+            table_name = 'audyt'
+            record_id = audyt_id
+            
+            if 'data__audyt' in column_parts:
+                field_name = 'data'
+            elif 'zakres__audyt' in column_parts:
+                field_name = 'zakres'
+            elif 'uwagi__audyt' in column_parts:
+                field_name = 'uwagi'
+            elif 'termin_wyslania_odpowiedzi__audyt' in column_parts:
+                field_name = 'termin_wyslania_odpowiedzi'
+            elif 'termin_zakonczenia_dzialan__audyt' in column_parts:
+                field_name = 'termin_zakonczenia_dzialan'
+            else:
+                return False, f"Unknown audyt field: {column_parts}"
+        else:
+            # For other tables like slownik_typ_audytu, opis_problemu, we can't easily update
+            return False, f"Updates to {column_parts} not supported (complex relationships)"
+        
+        # Perform the database update
+        success, message = update_database_cell(table_name, field_name, record_id, new_value)
+        return success, message
+        
+    except Exception as e:
+        return False, f"Error in update_audyty_database: {str(e)}"
 
 # Main data loading function with enhanced filters
 def load_data(filters=None):
@@ -261,73 +313,130 @@ def main():
     
     # Clear filters button
     if st.sidebar.button("Clear All Filters", key="aud_clear"):
+        # Reset filter-related session state to clear filters
+        for key in list(st.session_state.keys()):
+            if key.startswith("aud_") and key != "aud_clear":
+                del st.session_state[key]
+        st.session_state.audyty_filters_changed = True
         st.rerun()
     
-    # Load data with filters
-    df = load_data(filters if filters else None)
+    # Initialize session state for data management
+    if 'audyty_data_loaded' not in st.session_state:
+        st.session_state.audyty_data_loaded = False
+    if 'audyty_current_df' not in st.session_state:
+        st.session_state.audyty_current_df = None
+    if 'audyty_filters_changed' not in st.session_state:
+        st.session_state.audyty_filters_changed = False
     
-    if df.empty:
-        st.warning("No data available")
-        return
+    # Check if filters have changed
+    current_filters = str(filters if filters else {})
+    if 'audyty_last_filters' not in st.session_state:
+        st.session_state.audyty_last_filters = ""
     
-    # Remove ID column from display
-    df = df.drop('id', axis=1)
+    if current_filters != st.session_state.audyty_last_filters:
+        st.session_state.audyty_filters_changed = True
+        st.session_state.audyty_last_filters = current_filters
     
-    # Rename columns to match specification
-    df.columns = [
-        "1. data__audyt (date)",
-        "2. typ__audyt (text)",
-        "3. zakres__audyt (text)",
-        "4. uwagi__audyt (text)",
-        "5. opis__opis_problemu (text)",
-        "6. przyczyna_bezposrednia__opis_problemu (text)",
-        "7. termin_wyslania_odpowiedzi__audyt (date)",
-        "8. termin_zakonczenia_dzialan__audyt (date)",
-        "9. opis_dzialania__dzialanie (list)",
-        "10. imie_nazwisko__pracownik (list)",
-        "11. data_planowana__dzialanie (list)",
-        "12. data_rzeczywista__dzialanie (list)",
-        "13. status__opis_problemu (text)",
-        "14. miejsce_zatrzymania__opis_problemu (text)",
-        "15. miejsce_powstania__opis_problemu (text)",
-        "16. uwagi__opis_problemu (text)",
-        "17. kod_przyczyny__opis_problemu (text)",
-        "18. przyczyna_ogolna__opis_problemu (text)",
-        "19. data__sprawdzanie_dzialan (list)",
-        "20. status__sprawdzanie_dzialan (list)",
-        "21. uwagi__sprawdzanie_dzialan (list)",
-        "22. imie_nazwisko_sprawdzanie__pracownik (list)",
-        "23. typ__sprawdzanie_dzialan (list)",
-        "24. nazwa__slownik_dzial (list)"
-    ]
+    # Load data only if not loaded yet or filters changed
+    if not st.session_state.audyty_data_loaded or st.session_state.audyty_filters_changed:
+        df = load_data(filters if filters else None)
+        
+        if df.empty:
+            st.warning("No data available")
+            return
+        
+        # Remove ID column from display
+        df = df.drop('id', axis=1)
+        
+        # Rename columns to match specification
+        df.columns = [
+            "1. data__audyt (date)",
+            "2. typ__audyt (text)",
+            "3. zakres__audyt (text)",
+            "4. uwagi__audyt (text)",
+            "5. opis__opis_problemu (text)",
+            "6. przyczyna_bezposrednia__opis_problemu (text)",
+            "7. termin_wyslania_odpowiedzi__audyt (date)",
+            "8. termin_zakonczenia_dzialan__audyt (date)",
+            "9. opis_dzialania__dzialanie (list)",
+            "10. imie_nazwisko__pracownik (list)",
+            "11. data_planowana__dzialanie (list)",
+            "12. data_rzeczywista__dzialanie (list)",
+            "13. status__opis_problemu (text)",
+            "14. miejsce_zatrzymania__opis_problemu (text)",
+            "15. miejsce_powstania__opis_problemu (text)",
+            "16. uwagi__opis_problemu (text)",
+            "17. kod_przyczyny__opis_problemu (text)",
+            "18. przyczyna_ogolna__opis_problemu (text)",
+            "19. data__sprawdzanie_dzialan (list)",
+            "20. status__sprawdzanie_dzialan (list)",
+            "21. uwagi__sprawdzanie_dzialan (list)",
+            "22. imie_nazwisko_sprawdzanie__pracownik (list)",
+            "23. typ__sprawdzanie_dzialan (list)",
+            "24. nazwa__slownik_dzial (list)"
+        ]
+        
+        # Store data in session state with renamed columns
+        st.session_state.audyty_current_df = df.copy()
+        st.session_state.audyty_data_loaded = True
+        st.session_state.audyty_filters_changed = False
+    else:
+        # Use cached data (already has renamed columns)
+        df = st.session_state.audyty_current_df.copy()
     
     # Display data editor
     st.subheader("Audyty Data")
     
+    # Always use the current cached data for display to reflect any updates
+    display_df = st.session_state.audyty_current_df.copy() if st.session_state.audyty_current_df is not None else df
+    
+    # Store original data for comparison
+    if 'audyty_original_df' not in st.session_state:
+        st.session_state.audyty_original_df = None
+    if st.session_state.audyty_original_df is None:
+        st.session_state.audyty_original_df = display_df.copy()
+    
     edited_df = st.data_editor(
-        df,
+        display_df,
         column_config=get_column_config(),
         use_container_width=True,
         hide_index=True,
         key="audyty_editor"
     )
     
-    # Track changes and update database
+    # Track changes and update database (REAL)
     if "edited_rows" in st.session_state.audyty_editor:
         edited_rows = st.session_state.audyty_editor["edited_rows"]
         if edited_rows:
-            # Simulate database update (replace with actual update logic)
             for row_idx, changes in edited_rows.items():
                 for col_name, new_value in changes.items():
-                    update_info = {
-                        "timestamp": pd.Timestamp.now(),
-                        "row": row_idx,
-                        "column": col_name,
-                        "old_value": df.iloc[int(row_idx)][col_name] if int(row_idx) < len(df) else "N/A",
-                        "new_value": new_value,
-                        "status": "success"  # In real implementation, this would depend on actual DB update
-                    }
-                    st.session_state.audyty_update_status.append(update_info)
+                    # Get original value for comparison
+                    if int(row_idx) < len(st.session_state.audyty_original_df):
+                        original_value = st.session_state.audyty_original_df.iloc[int(row_idx)][col_name]
+                        
+                        # Only update if value actually changed
+                        if str(new_value) != str(original_value):
+                            success, message = update_audyty_database(
+                                int(row_idx), col_name, new_value, st.session_state.audyty_original_df
+                            )
+                            
+                            update_info = {
+                                "timestamp": pd.Timestamp.now(),
+                                "row": row_idx,
+                                "column": col_name,
+                                "old_value": original_value,
+                                "new_value": new_value,
+                                "status": "success" if success else "error",
+                                "message": message
+                            }
+                            st.session_state.audyty_update_status.append(update_info)
+                            
+                            if success:
+                                # Update both original and current df to reflect the change
+                                st.session_state.audyty_original_df.iloc[int(row_idx), 
+                                    st.session_state.audyty_original_df.columns.get_loc(col_name)] = new_value
+                                st.session_state.audyty_current_df.iloc[int(row_idx), 
+                                    st.session_state.audyty_current_df.columns.get_loc(col_name)] = new_value
     
     # Display update status
     if st.session_state.audyty_update_status:
@@ -340,15 +449,40 @@ def main():
             if update["status"] == "success":
                 st.success(f"✅ Row {update['row']}, Column '{update['column']}': '{update['old_value']}' → '{update['new_value']}' (Updated at {update['timestamp'].strftime('%H:%M:%S')})")
             else:
-                st.error(f"❌ Row {update['row']}, Column '{update['column']}': Update failed (At {update['timestamp'].strftime('%H:%M:%S')})")
+                st.error(f"❌ Row {update['row']}, Column '{update['column']}': {update.get('message', 'Update failed')} (At {update['timestamp'].strftime('%H:%M:%S')})")
         
         # Clear updates button
         if st.button("Clear Update History", key="aud_clear_updates"):
             st.session_state.audyty_update_status = []
-            st.rerun()
+    
+    # Manual refresh button
+    col1, col2 = st.columns([1, 4])
+    with col1:
+        if st.button("🔄 Refresh Data", key="aud_refresh"):
+            # Force data refresh by reloading from database
+            fresh_df = load_data(filters if filters else None)
+            if not fresh_df.empty:
+                # Remove ID column and rename columns
+                fresh_df = fresh_df.drop('id', axis=1)
+                fresh_df.columns = [
+                    "1. data__audyt (date)", "2. typ__audyt (text)", "3. zakres__audyt (text)", "4. uwagi__audyt (text)",
+                    "5. opis__opis_problemu (text)", "6. przyczyna_bezposrednia__opis_problemu (text)", "7. termin_wyslania_odpowiedzi__audyt (date)",
+                    "8. termin_zakonczenia_dzialan__audyt (date)", "9. opis_dzialania__dzialanie (list)", "10. imie_nazwisko__pracownik (list)",
+                    "11. data_planowana__dzialanie (list)", "12. data_rzeczywista__dzialanie (list)", "13. status__opis_problemu (text)",
+                    "14. miejsce_zatrzymania__opis_problemu (text)", "15. miejsce_powstania__opis_problemu (text)", "16. uwagi__opis_problemu (text)",
+                    "17. kod_przyczyny__opis_problemu (text)", "18. przyczyna_ogolna__opis_problemu (text)", "19. data__sprawdzanie_dzialan (list)",
+                    "20. status__sprawdzanie_dzialan (list)", "21. uwagi__sprawdzanie_dzialan (list)", "22. imie_nazwisko_sprawdzanie__pracownik (list)",
+                    "23. typ__sprawdzanie_dzialan (list)", "24. nazwa__slownik_dzial (list)"
+                ]
+                # Update cached data
+                st.session_state.audyty_current_df = fresh_df.copy()
+                st.session_state.audyty_original_df = fresh_df.copy()
+                st.success("Data refreshed successfully!")
+            else:
+                st.warning("No data available after refresh")
     
     # Display data info
-    st.info(f"Total records: {len(df)}")
+    st.info(f"Total records: {len(display_df)}")
 
 if __name__ == "__main__":
     main() 
