@@ -104,9 +104,122 @@ def update_doskonalenia_database(row_idx, column_name, new_value, original_df):
                 field_name = 'przyczyna_ogolna'
             else:
                 return False, f"Unknown opis_problemu field: {column_parts}"
+                
+        elif 'dzialanie' in column_parts:
+            # Handle dzialanie table updates
+            if pd.isna(opis_problemu_id):
+                return False, "No opis_problemu record found for this reklamacja"
+            
+            # Determine which dzialanie record to update (1st or 2nd)
+            dzialanie_order = 1
+            if any(x in column_parts for x in ['data_planowana__dzialanie2', 'uwagi__dzialanie2', 'data_rzeczywista__dzialanie']):
+                dzialanie_order = 2
+            
+            # Get the dzialanie ID
+            dzialanie_query = f"""
+                SELECT d.id as dzialanie_id
+                FROM dzialanie_opis_problemu dop
+                LEFT JOIN dzialanie d ON dop.dzialanie_id = d.id
+                WHERE dop.opis_problemu_id = {opis_problemu_id}
+                ORDER BY d.id
+                LIMIT 1 OFFSET {dzialanie_order - 1}
+            """
+            
+            dzialanie_result = execute_query(dzialanie_query)
+            if dzialanie_result.empty:
+                return False, f"No dzialanie record #{dzialanie_order} found for this opis_problemu"
+            
+            table_name = 'dzialanie'
+            record_id = dzialanie_result.iloc[0]['dzialanie_id']
+            
+            if 'data_planowana__dzialanie' in column_parts:
+                field_name = 'data_planowana'
+            elif 'opis_dzialania__dzialanie' in column_parts:
+                field_name = 'opis_dzialania'
+            elif 'uwagi__dzialanie' in column_parts:
+                field_name = 'uwagi'
+            elif 'data_rzeczywista__dzialanie' in column_parts:
+                field_name = 'data_rzeczywista'
+            else:
+                return False, f"Unknown dzialanie field: {column_parts}"
+                
+        elif 'sprawdzenie_dzialan' in column_parts:
+            # Handle sprawdzenie_dzialan table updates
+            if pd.isna(opis_problemu_id):
+                return False, "No opis_problemu record found for this reklamacja"
+            
+            # Determine which sprawdzenie record to update (1st or 2nd)
+            sprawdzenie_order = 1
+            if any(x in column_parts for x in ['data__sprawdzenie_dzialan2', 'status__sprawdzenie_dzialan2', 'uwagi__sprawdzenie_dzialan2']):
+                sprawdzenie_order = 2
+            
+            # Get the sprawdzenie_dzialan ID
+            sprawdzenie_query = f"""
+                SELECT sd.id as sprawdzenie_id
+                FROM sprawdzanie_dzialan_opis_problemu sdop
+                LEFT JOIN sprawdzanie_dzialan sd ON sdop.sprawdzanie_dzialan_id = sd.id
+                WHERE sdop.opis_problemu_id = {opis_problemu_id}
+                ORDER BY sd.id
+                LIMIT 1 OFFSET {sprawdzenie_order - 1}
+            """
+            
+            sprawdzenie_result = execute_query(sprawdzenie_query)
+            if sprawdzenie_result.empty:
+                return False, f"No sprawdzenie_dzialan record #{sprawdzenie_order} found for this opis_problemu"
+            
+            table_name = 'sprawdzanie_dzialan'
+            record_id = sprawdzenie_result.iloc[0]['sprawdzenie_id']
+            
+            if 'data__sprawdzenie_dzialan' in column_parts:
+                field_name = 'data'
+            elif 'status__sprawdzenie_dzialan' in column_parts:
+                field_name = 'status'
+                # Convert text status back to boolean for database
+                if new_value == 'wykonane':
+                    new_value = True
+                elif new_value == 'niewykonane':
+                    new_value = False
+                else:  # 'w trakcie' or any other value
+                    new_value = None
+            elif 'uwagi__sprawdzenie_dzialan' in column_parts:
+                field_name = 'uwagi'
+            else:
+                return False, f"Unknown sprawdzenie_dzialan field: {column_parts}"
+                
+        elif 'detal' in column_parts:
+            # Handle detal table updates
+            detal_query = f"""
+                SELECT dt.id as detal_id
+                FROM reklamacja_detal rd
+                LEFT JOIN detal dt ON rd.detal_id = dt.id
+                WHERE rd.reklamacja_id = {reklamacja_id}
+                ORDER BY dt.id
+                LIMIT 1
+            """
+            
+            detal_result = execute_query(detal_query)
+            if detal_result.empty:
+                return False, "No detal record found for this reklamacja"
+            
+            table_name = 'detal'
+            record_id = detal_result.iloc[0]['detal_id']
+            
+            if 'kod__detal' in column_parts:
+                field_name = 'kod'
+            elif 'nazwa_wyrobu__detal' in column_parts:
+                field_name = 'nazwa_wyrobu'
+            elif 'oznaczenie__detal' in column_parts:
+                field_name = 'oznaczenie'
+            elif 'ilosc_zlecenie__detal' in column_parts:
+                field_name = 'ilosc_zlecenie'
+            elif 'ilosc_niezgodna__detal' in column_parts:
+                field_name = 'ilosc_niezgodna'
+            else:
+                return False, f"Unknown detal field: {column_parts}"
+                
         else:
-            # For other tables like firma, slownik_typ_reklamacji, we can't easily update
-            return False, f"Updates to {column_parts} not supported (complex relationships)"
+            # For other tables like firma, slownik_dzial, pracownik, we can't easily update
+            return False, f"Updates to {column_parts} not supported (read-only or complex relationships)"
         
         # Perform the database update
         success, message = update_database_cell(table_name, field_name, record_id, new_value)
@@ -127,9 +240,9 @@ def load_data(filters=None):
         if filters.get('status_filter'):
             where_conditions.append(f"op.status = '{filters['status_filter']}'")
         if filters.get('department_filter'):
-            where_conditions.append(f"sd.nazwa = '{filters['department_filter']}'")
+            where_conditions.append(f"sdzial.nazwa = '{filters['department_filter']}'")
         if filters.get('employee_filter'):
-            where_conditions.append(f"(p1.imie || ' ' || p1.nazwisko) ILIKE '%{filters['employee_filter']}%'")
+            where_conditions.append(f"(p1.imie || ' ' || p1.nazwisko) ILIKE '%{filters['employee_filter']}%' OR (p2.imie || ' ' || p2.nazwisko) ILIKE '%{filters['employee_filter']}%' OR (p3.imie || ' ' || p3.nazwisko) ILIKE '%{filters['employee_filter']}%'")
         if filters.get('company_filter'):
             where_conditions.append(f"f.nazwa = '{filters['company_filter']}'")
         if filters.get('nr_reklamacji'):
@@ -149,60 +262,137 @@ def load_data(filters=None):
     
     where_clause = "WHERE " + " AND ".join(where_conditions) if where_conditions else ""
     
+    # Optimized query with subqueries for better performance
     query = f"""
+        WITH base_data AS (
+            SELECT DISTINCT
+                r.id,
+                r.data_otwarcia,
+                f.nazwa as firma_nazwa,
+                dt.kod as detal_kod,
+                r.zlecenie,
+                dt.nazwa_wyrobu,
+                dt.oznaczenie as detal_oznaczenie,
+                dt.ilosc_zlecenie,
+                dt.ilosc_niezgodna,
+                op.id as opis_problemu_id,
+                op.status as op_status,
+                op.miejsce_zatrzymania,
+                op.miejsce_powstania,
+                op.opis,
+                op.przyczyna_bezposrednia,
+                sdzial.nazwa as dzial_nazwa
+            FROM reklamacja r
+            LEFT JOIN firma f ON r.firma_id = f.id
+            LEFT JOIN reklamacja_detal rd ON r.id = rd.reklamacja_id
+            LEFT JOIN detal dt ON rd.detal_id = dt.id
+            LEFT JOIN opis_problemu_reklamacja opr ON r.id = opr.reklamacja_id
+            LEFT JOIN opis_problemu op ON opr.opis_problemu_id = op.id
+            LEFT JOIN opis_problemu_dzial opd ON op.id = opd.opis_problemu_id
+            LEFT JOIN slownik_dzial sdzial ON opd.dzial_id = sdzial.id
+            {where_clause}
+        ),
+        dzialanie_data AS (
+            SELECT 
+                op_id,
+                MAX(CASE WHEN rn = 1 THEN data_planowana END) as data_planowana_1,
+                MAX(CASE WHEN rn = 1 THEN opis_dzialania END) as opis_dzialania_1,
+                MAX(CASE WHEN rn = 1 THEN uwagi END) as uwagi_1,
+                MAX(CASE WHEN rn = 1 THEN pracownik_name END) as pracownik_1,
+                MAX(CASE WHEN rn = 2 THEN data_planowana END) as data_planowana_2,
+                MAX(CASE WHEN rn = 2 THEN uwagi END) as uwagi_2,
+                MAX(CASE WHEN rn = 2 THEN data_rzeczywista END) as data_rzeczywista_2,
+                MAX(CASE WHEN rn = 2 THEN pracownik_name END) as pracownik_2
+            FROM (
+                SELECT 
+                    op.id as op_id,
+                    d.data_planowana,
+                    d.opis_dzialania,
+                    d.uwagi,
+                    d.data_rzeczywista,
+                    COALESCE(p.imie || ' ' || p.nazwisko, '') as pracownik_name,
+                    ROW_NUMBER() OVER (PARTITION BY op.id ORDER BY d.id) as rn
+                FROM opis_problemu op
+                LEFT JOIN dzialanie_opis_problemu dop ON op.id = dop.opis_problemu_id
+                LEFT JOIN dzialanie d ON dop.dzialanie_id = d.id
+                LEFT JOIN dzialanie_pracownik dp ON d.id = dp.dzialanie_id
+                LEFT JOIN pracownik p ON dp.pracownik_id = p.id
+            ) ranked_dzialanie
+            GROUP BY op_id
+        ),
+        sprawdzenie_data AS (
+            SELECT 
+                op_id,
+                MAX(CASE WHEN rn = 1 THEN data END) as data_sprawdzenie_1,
+                MAX(CASE WHEN rn = 1 THEN 
+                    CASE 
+                        WHEN status = true THEN 'wykonane'
+                        WHEN status = false THEN 'niewykonane'
+                        ELSE 'w trakcie'
+                    END 
+                END) as status_sprawdzenie_1,
+                MAX(CASE WHEN rn = 1 THEN uwagi END) as uwagi_sprawdzenie_1,
+                MAX(CASE WHEN rn = 1 THEN pracownik_name END) as pracownik_sprawdzenie_1,
+                MAX(CASE WHEN rn = 2 THEN data END) as data_sprawdzenie_2,
+                MAX(CASE WHEN rn = 2 THEN 
+                    CASE 
+                        WHEN status = true THEN 'wykonane'
+                        WHEN status = false THEN 'niewykonane'
+                        ELSE 'w trakcie'
+                    END 
+                END) as status_sprawdzenie_2,
+                MAX(CASE WHEN rn = 2 THEN uwagi END) as uwagi_sprawdzenie_2
+            FROM (
+                SELECT 
+                    op.id as op_id,
+                    sd.data,
+                    sd.status,
+                    sd.uwagi,
+                    COALESCE(p.imie || ' ' || p.nazwisko, '') as pracownik_name,
+                    ROW_NUMBER() OVER (PARTITION BY op.id ORDER BY sd.id) as rn
+                FROM opis_problemu op
+                LEFT JOIN sprawdzanie_dzialan_opis_problemu sdop ON op.id = sdop.opis_problemu_id
+                LEFT JOIN sprawdzanie_dzialan sd ON sdop.sprawdzanie_dzialan_id = sd.id
+                LEFT JOIN sprawdzanie_dzialan_pracownik sdp ON sd.id = sdp.sprawdzanie_dzialan_id
+                LEFT JOIN pracownik p ON sdp.pracownik_id = p.id
+            ) ranked_sprawdzenie
+            GROUP BY op_id
+        )
         SELECT 
-            r.id,
-            r.data_otwarcia as data_otwarcia__reklamacja,
-            op.status as status__opis_problemu,
-            op.opis as opis__opis_problemu,
-            op.przyczyna_bezposrednia as przyczyna_bezposrednia__opis_problemu,
-            op.miejsce_zatrzymania as miejsce_zatrzymania__opis_problemu,
-            op.miejsce_powstania as miejsce_powstania__opis_problemu,
-            op.uwagi as uwagi__opis_problemu,
-            op.kod_przyczyny as kod_przyczyny__opis_problemu,
-            op.przyczyna_ogolna as przyczyna_ogolna__opis_problemu,
-            f.nazwa as nazwa__firma,
-            r.nr_reklamacji as nr_reklamacji__reklamacja,
-            str.nazwa as typ__slownik_typ_reklamacji,
-            r.data_weryfikacji as data_weryfikacji__reklamacja,
-            r."data_zakończenia" as data_zakonczenia__reklamacja,
-            r.data_produkcji_silownika as data_produkcji_silownika__reklamacja,
-            r.typ_cylindra as typ_cylindra__reklamacja,
-            r.zlecenie as zlecenie__reklamacja,
-            r.status as status__reklamacja,
-            r.nr_protokolu as nr_protokolu__reklamacja,
-            r.analiza_terminowosci_weryfikacji as analiza_terminowosci_weryfikacji__reklamacja,
-            r.dokument_rozliczeniowy as dokument_rozliczeniowy__reklamacja,
-            r.nr_dokumentu as nr_dokumentu__reklamacja,
-            r.data_dokumentu as data_dokumentu__reklamacja,
-            r.nr_magazynu as nr_magazynu__reklamacja,
-            r.nr_listu_przewozowego as nr_listu_przewozowego__reklamacja,
-            r.przewoznik as przewoznik__reklamacja,
-            r.analiza_terminowosci_realizacji as analiza_terminowosci_realizacji__reklamacja,
-            ARRAY_AGG(DISTINCT CONCAT(p1.imie, ' ', p1.nazwisko)) FILTER (WHERE p1.imie IS NOT NULL) as imie_nazwisko__pracownik,
-            ARRAY_AGG(DISTINCT sd.nazwa) FILTER (WHERE sd.nazwa IS NOT NULL) as nazwa__slownik_dzial
-        FROM reklamacja r
-        LEFT JOIN firma f ON r.firma_id = f.id
-        LEFT JOIN slownik_typ_reklamacji str ON r.typ_id = str.id
-        LEFT JOIN opis_problemu_reklamacja opr ON r.id = opr.reklamacja_id
-        LEFT JOIN opis_problemu op ON opr.opis_problemu_id = op.id
-        LEFT JOIN opis_problemu_dzial opd ON op.id = opd.opis_problemu_id
-        LEFT JOIN slownik_dzial sd ON opd.dzial_id = sd.id
-        LEFT JOIN pracownik p1 ON p1.dzial_id = sd.id
-        LEFT JOIN dzialanie_opis_problemu dop1 ON op.id = dop1.opis_problemu_id
-        LEFT JOIN dzialanie d1 ON dop1.dzialanie_id = d1.id
-        LEFT JOIN dzialanie_pracownik dp1 ON d1.id = dp1.dzialanie_id
-        LEFT JOIN sprawdzanie_dzialan_opis_problemu sdop1 ON op.id = sdop1.opis_problemu_id
-        LEFT JOIN sprawdzanie_dzialan sd1 ON sdop1.sprawdzanie_dzialan_id = sd1.id
-        LEFT JOIN sprawdzanie_dzialan_pracownik sdp1 ON sd1.id = sdp1.sprawdzanie_dzialan_id
-        {where_clause}
-        GROUP BY r.id, r.data_otwarcia, op.status, op.opis, op.przyczyna_bezposrednia, op.miejsce_zatrzymania,
-                 op.miejsce_powstania, op.uwagi, op.kod_przyczyny, op.przyczyna_ogolna, f.nazwa, r.nr_reklamacji,
-                 str.nazwa, r.data_weryfikacji, r."data_zakończenia", r.data_produkcji_silownika, r.typ_cylindra,
-                 r.zlecenie, r.status, r.nr_protokolu, r.analiza_terminowosci_weryfikacji, r.dokument_rozliczeniowy,
-                 r.nr_dokumentu, r.data_dokumentu, r.nr_magazynu, r.nr_listu_przewozowego, r.przewoznik,
-                 r.analiza_terminowosci_realizacji
-        ORDER BY r.data_otwarcia DESC
+            bd.id,
+            bd.data_otwarcia as data_otwarcia__reklamacja,
+            bd.firma_nazwa as nazwa__firma,
+            bd.detal_kod as kod__detal,
+            bd.zlecenie as zlecenie__reklamacja,
+            bd.nazwa_wyrobu as nazwa_wyrobu__detal,
+            bd.detal_oznaczenie as oznaczenie__detal,
+            bd.ilosc_zlecenie as ilosc_zlecenie__detal,
+            bd.ilosc_niezgodna as ilosc_niezgodna__detal,
+            bd.op_status as status__opis_problemu,
+            bd.miejsce_zatrzymania as miejsce_zatrzymania__opis_problemu,
+            bd.miejsce_powstania as miejsce_powstania__opis_problemu,
+            bd.opis as opis__opis_problemu,
+            bd.przyczyna_bezposrednia as przyczyna_bezposrednia__opis_problemu,
+            dd.data_planowana_1 as data_planowana__dzialanie,
+            dd.opis_dzialania_1 as opis_dzialania__dzialanie,
+            dd.uwagi_1 as uwagi__dzialanie,
+            dd.pracownik_1 as imie_nazwisko__pracownik,
+            dd.data_planowana_2 as data_planowana__dzialanie2,
+            dd.uwagi_2 as uwagi__dzialanie2,
+            dd.data_rzeczywista_2 as data_rzeczywista__dzialanie,
+            dd.pracownik_2 as imie_nazwisko__pracownik2,
+            sd.data_sprawdzenie_1 as data__sprawdzenie_dzialan,
+            sd.status_sprawdzenie_1 as status__sprawdzenie_dzialan,
+            sd.uwagi_sprawdzenie_1 as uwagi__sprawdzenie_dzialan,
+            sd.pracownik_sprawdzenie_1 as imie_nazwisko__pracownik3,
+            sd.data_sprawdzenie_2 as data__sprawdzenie_dzialan2,
+            sd.status_sprawdzenie_2 as status__sprawdzenie_dzialan2,
+            sd.uwagi_sprawdzenie_2 as uwagi__sprawdzenie_dzialan2,
+            bd.dzial_nazwa as nazwa__slownik_dzial
+        FROM base_data bd
+        LEFT JOIN dzialanie_data dd ON bd.opis_problemu_id = dd.op_id
+        LEFT JOIN sprawdzenie_data sd ON bd.opis_problemu_id = sd.op_id
+        ORDER BY bd.data_otwarcia DESC
     """
     return execute_query(query)
 
@@ -212,129 +402,131 @@ def get_column_config():
     department_names = load_department_names()
     
     return {
-        "1. data_otwarcia__reklamacja (date)": st.column_config.DateColumn(
-            "1. data_otwarcia__reklamacja (date)",
+        "1. data_otwarcia__reklamacja": st.column_config.DateColumn(
+            "1. data_otwarcia__reklamacja",
             format="YYYY-MM-DD",
             width="medium"
         ),
-        "2. status__opis_problemu (text)": st.column_config.SelectboxColumn(
-            "2. status__opis_problemu (text)",
+        "2. nazwa__firma": st.column_config.TextColumn(
+            "2. nazwa__firma",
+            width="medium"
+        ),
+        "3. kod__detal": st.column_config.TextColumn(
+            "3. kod__detal",
+            width="medium"
+        ),
+        "4. zlecenie__reklamacja": st.column_config.TextColumn(
+            "4. zlecenie__reklamacja",
+            width="medium"
+        ),
+        "5. nazwa_wyrobu__detal": st.column_config.TextColumn(
+            "5. nazwa_wyrobu__detal",
+            width="large"
+        ),
+        "6. oznaczenie__detal": st.column_config.TextColumn(
+            "6. oznaczenie__detal",
+            width="medium"
+        ),
+        "7. ilosc_zlecenie__detal": st.column_config.NumberColumn(
+            "7. ilosc_zlecenie__detal",
+            width="small"
+        ),
+        "8. ilosc_niezgodna__detal": st.column_config.NumberColumn(
+            "8. ilosc_niezgodna__detal",
+            width="small"
+        ),
+        "9. status__opis_problemu": st.column_config.SelectboxColumn(
+            "9. status__opis_problemu",
             options=["w trakcie", "zakonczone"],
             width="medium"
         ),
-        "3. opis__opis_problemu (text)": st.column_config.TextColumn(
-            "3. opis__opis_problemu (text)",
-            width="large"
-        ),
-        "4. przyczyna_bezposrednia__opis_problemu (text)": st.column_config.TextColumn(
-            "4. przyczyna_bezposrednia__opis_problemu (text)",
-            width="large"
-        ),
-        "5. miejsce_zatrzymania__opis_problemu (text)": st.column_config.SelectboxColumn(
-            "5. miejsce_zatrzymania__opis_problemu (text)",
+        "10. miejsce_zatrzymania__opis_problemu": st.column_config.SelectboxColumn(
+            "10. miejsce_zatrzymania__opis_problemu",
             options=["P", "M", "G"],
             width="small"
         ),
-        "6. miejsce_powstania__opis_problemu (text)": st.column_config.SelectboxColumn(
-            "6. miejsce_powstania__opis_problemu (text)",
+        "11. miejsce_powstania__opis_problemu": st.column_config.SelectboxColumn(
+            "11. miejsce_powstania__opis_problemu",
             options=["P", "G"],
             width="small"
         ),
-        "7. uwagi__opis_problemu (text)": st.column_config.TextColumn(
-            "7. uwagi__opis_problemu (text)",
+        "12. opis__opis_problemu": st.column_config.TextColumn(
+            "12. opis__opis_problemu",
             width="large"
         ),
-        "8. kod_przyczyny__opis_problemu (text)": st.column_config.TextColumn(
-            "8. kod_przyczyny__opis_problemu (text)",
-            width="medium"
-        ),
-        "9. przyczyna_ogolna__opis_problemu (text)": st.column_config.TextColumn(
-            "9. przyczyna_ogolna__opis_problemu (text)",
+        "13. przyczyna_bezposrednia__opis_problemu": st.column_config.TextColumn(
+            "13. przyczyna_bezposrednia__opis_problemu",
             width="large"
         ),
-        "10. nazwa__firma (text)": st.column_config.TextColumn(
-            "10. nazwa__firma (text)",
-            width="medium"
-        ),
-        "11. nr_reklamacji__reklamacja (text)": st.column_config.TextColumn(
-            "11. nr_reklamacji__reklamacja (text)",
-            width="medium"
-        ),
-        "12. typ__slownik_typ_reklamacji (text)": st.column_config.TextColumn(
-            "12. typ__slownik_typ_reklamacji (text)",
-            width="medium"
-        ),
-        "13. data_weryfikacji__reklamacja (date)": st.column_config.DateColumn(
-            "13. data_weryfikacji__reklamacja (date)",
+        "14. data_planowana__dzialanie": st.column_config.DateColumn(
+            "14. data_planowana__dzialanie",
             format="YYYY-MM-DD",
             width="medium"
         ),
-        "14. data_zakonczenia__reklamacja (date)": st.column_config.DateColumn(
-            "14. data_zakonczenia__reklamacja (date)",
+        "15. opis_dzialania__dzialanie": st.column_config.TextColumn(
+            "15. opis_dzialania__dzialanie",
+            width="large"
+        ),
+        "16. uwagi__dzialanie": st.column_config.TextColumn(
+            "16. uwagi__dzialanie",
+            width="large"
+        ),
+        "17. imie_nazwisko__pracownik": st.column_config.TextColumn(
+            "17. imie_nazwisko__pracownik",
+            width="medium"
+        ),
+        "18. data_planowana__dzialanie": st.column_config.DateColumn(
+            "18. data_planowana__dzialanie",
             format="YYYY-MM-DD",
             width="medium"
         ),
-        "15. data_produkcji_silownika__reklamacja (date)": st.column_config.DateColumn(
-            "15. data_produkcji_silownika__reklamacja (date)",
+        "19. uwagi__dzialanie": st.column_config.TextColumn(
+            "19. uwagi__dzialanie",
+            width="large"
+        ),
+        "20. data_rzeczywista__dzialanie": st.column_config.DateColumn(
+            "20. data_rzeczywista__dzialanie",
             format="YYYY-MM-DD",
             width="medium"
         ),
-        "16. typ_cylindra__reklamacja (text)": st.column_config.TextColumn(
-            "16. typ_cylindra__reklamacja (text)",
+        "21. imie_nazwisko__pracownik": st.column_config.TextColumn(
+            "21. imie_nazwisko__pracownik",
             width="medium"
         ),
-        "17. zlecenie__reklamacja (text)": st.column_config.TextColumn(
-            "17. zlecenie__reklamacja (text)",
-            width="medium"
-        ),
-        "18. status__reklamacja (checkbox)": st.column_config.CheckboxColumn(
-            "18. status__reklamacja (checkbox)",
-            width="small"
-        ),
-        "19. nr_protokolu__reklamacja (text)": st.column_config.TextColumn(
-            "19. nr_protokolu__reklamacja (text)",
-            width="medium"
-        ),
-        "20. analiza_terminowosci_weryfikacji__reklamacja (number)": st.column_config.NumberColumn(
-            "20. analiza_terminowosci_weryfikacji__reklamacja (number)",
-            width="medium"
-        ),
-        "21. dokument_rozliczeniowy__reklamacja (text)": st.column_config.SelectboxColumn(
-            "21. dokument_rozliczeniowy__reklamacja (text)",
-            options=["nota_korygujaca", "nota_obciazeniowa", "zwrot_towaru"],
-            width="medium"
-        ),
-        "22. nr_dokumentu__reklamacja (text)": st.column_config.TextColumn(
-            "22. nr_dokumentu__reklamacja (text)",
-            width="medium"
-        ),
-        "23. data_dokumentu__reklamacja (date)": st.column_config.DateColumn(
-            "23. data_dokumentu__reklamacja (date)",
+        "22. data__sprawdzenie_dzialan": st.column_config.DateColumn(
+            "22. data__sprawdzenie_dzialan",
             format="YYYY-MM-DD",
             width="medium"
         ),
-        "24. nr_magazynu__reklamacja (text)": st.column_config.TextColumn(
-            "24. nr_magazynu__reklamacja (text)",
+        "23. status__sprawdzenie_dzialan": st.column_config.SelectboxColumn(
+            "23. status__sprawdzenie_dzialan",
+            options=["wykonane", "w trakcie", "niewykonane"],
             width="medium"
         ),
-        "25. nr_listu_przewozowego__reklamacja (text)": st.column_config.TextColumn(
-            "25. nr_listu_przewozowego__reklamacja (text)",
+        "24. uwagi__sprawdzenie_dzialan": st.column_config.TextColumn(
+            "24. uwagi__sprawdzenie_dzialan",
+            width="large"
+        ),
+        "25. imie_nazwisko__pracownik": st.column_config.TextColumn(
+            "25. imie_nazwisko__pracownik",
             width="medium"
         ),
-        "26. przewoznik__reklamacja (text)": st.column_config.TextColumn(
-            "26. przewoznik__reklamacja (text)",
+        "26. data__sprawdzenie_dzialan": st.column_config.DateColumn(
+            "26. data__sprawdzenie_dzialan",
+            format="YYYY-MM-DD",
             width="medium"
         ),
-        "27. analiza_terminowosci_realizacji__reklamacja (number)": st.column_config.NumberColumn(
-            "27. analiza_terminowosci_realizacji__reklamacja (number)",
+        "27. status__sprawdzenie_dzialan": st.column_config.SelectboxColumn(
+            "27. status__sprawdzenie_dzialan",
+            options=["wykonane", "w trakcie", "niewykonane"],
             width="medium"
         ),
-        "28. imie_nazwisko__pracownik (list)": st.column_config.ListColumn(
-            "28. imie_nazwisko__pracownik (list)",
-            width="medium"
+        "28. uwagi__sprawdzenie_dzialan": st.column_config.TextColumn(
+            "28. uwagi__sprawdzenie_dzialan",
+            width="large"
         ),
-        "29. nazwa__slownik_dzial (list)": st.column_config.ListColumn(
-            "29. nazwa__slownik_dzial (list)",
+        "29. nazwa__slownik_dzial": st.column_config.TextColumn(
+            "29. nazwa__slownik_dzial",
             width="medium"
         )
     }
@@ -416,6 +608,8 @@ def main():
     if miejsce_powstania != "All":
         filters['miejsce_powstania'] = miejsce_powstania
     
+
+    
     # Clear filters button
     if st.sidebar.button("Clear All Filters", key="dosk_clear"):
         # Reset filter-related session state to clear filters
@@ -444,7 +638,8 @@ def main():
     
     # Load data only if not loaded yet or filters changed
     if not st.session_state.doskonalenia_data_loaded or st.session_state.doskonalenia_filters_changed:
-        df = load_data(filters if filters else None)
+        with st.spinner('Loading data...'):
+            df = load_data(filters if filters else None)
         
         if df.empty:
             st.warning("No data available")
@@ -455,35 +650,35 @@ def main():
         
         # Rename columns to match specification
         df.columns = [
-            "1. data_otwarcia__reklamacja (date)",
-            "2. status__opis_problemu (text)",
-            "3. opis__opis_problemu (text)",
-            "4. przyczyna_bezposrednia__opis_problemu (text)",
-            "5. miejsce_zatrzymania__opis_problemu (text)",
-            "6. miejsce_powstania__opis_problemu (text)",
-            "7. uwagi__opis_problemu (text)",
-            "8. kod_przyczyny__opis_problemu (text)",
-            "9. przyczyna_ogolna__opis_problemu (text)",
-            "10. nazwa__firma (text)",
-            "11. nr_reklamacji__reklamacja (text)",
-            "12. typ__slownik_typ_reklamacji (text)",
-            "13. data_weryfikacji__reklamacja (date)",
-            "14. data_zakonczenia__reklamacja (date)",
-            "15. data_produkcji_silownika__reklamacja (date)",
-            "16. typ_cylindra__reklamacja (text)",
-            "17. zlecenie__reklamacja (text)",
-            "18. status__reklamacja (checkbox)",
-            "19. nr_protokolu__reklamacja (text)",
-            "20. analiza_terminowosci_weryfikacji__reklamacja (number)",
-            "21. dokument_rozliczeniowy__reklamacja (text)",
-            "22. nr_dokumentu__reklamacja (text)",
-            "23. data_dokumentu__reklamacja (date)",
-            "24. nr_magazynu__reklamacja (text)",
-            "25. nr_listu_przewozowego__reklamacja (text)",
-            "26. przewoznik__reklamacja (text)",
-            "27. analiza_terminowosci_realizacji__reklamacja (number)",
-            "28. imie_nazwisko__pracownik (list)",
-            "29. nazwa__slownik_dzial (list)"
+            "1. data_otwarcia__reklamacja",
+            "2. nazwa__firma",
+            "3. kod__detal",
+            "4. zlecenie__reklamacja",
+            "5. nazwa_wyrobu__detal",
+            "6. oznaczenie__detal",
+            "7. ilosc_zlecenie__detal",
+            "8. ilosc_niezgodna__detal",
+            "9. status__opis_problemu",
+            "10. miejsce_zatrzymania__opis_problemu",
+            "11. miejsce_powstania__opis_problemu",
+            "12. opis__opis_problemu",
+            "13. przyczyna_bezposrednia__opis_problemu",
+            "14. data_planowana__dzialanie",
+            "15. opis_dzialania__dzialanie",
+            "16. uwagi__dzialanie",
+            "17. imie_nazwisko__pracownik",
+            "18. data_planowana__dzialanie",
+            "19. uwagi__dzialanie",
+            "20. data_rzeczywista__dzialanie",
+            "21. imie_nazwisko__pracownik",
+            "22. data__sprawdzenie_dzialan",
+            "23. status__sprawdzenie_dzialan",
+            "24. uwagi__sprawdzenie_dzialan",
+            "25. imie_nazwisko__pracownik",
+            "26. data__sprawdzenie_dzialan",
+            "27. status__sprawdzenie_dzialan",
+            "28. uwagi__sprawdzenie_dzialan",
+            "29. nazwa__slownik_dzial"
         ]
         
         # Store data in session state with renamed columns
@@ -570,21 +765,20 @@ def main():
     with col1:
         if st.button("🔄 Refresh Data", key="dosk_refresh"):
             # Force data refresh by reloading from database
-            fresh_df = load_data(filters if filters else None)
+            with st.spinner('Refreshing data...'):
+                fresh_df = load_data(filters if filters else None)
             if not fresh_df.empty:
                 # Remove ID column and rename columns
                 fresh_df = fresh_df.drop('id', axis=1)
                 fresh_df.columns = [
-                    "1. data_otwarcia__reklamacja (date)", "2. status__opis_problemu (text)", "3. opis__opis_problemu (text)",
-                    "4. przyczyna_bezposrednia__opis_problemu (text)", "5. miejsce_zatrzymania__opis_problemu (text)", "6. miejsce_powstania__opis_problemu (text)",
-                    "7. uwagi__opis_problemu (text)", "8. kod_przyczyny__opis_problemu (text)", "9. przyczyna_ogolna__opis_problemu (text)",
-                    "10. nazwa__firma (text)", "11. nr_reklamacji__reklamacja (text)", "12. typ__slownik_typ_reklamacji (text)",
-                    "13. data_weryfikacji__reklamacja (date)", "14. data_zakonczenia__reklamacja (date)", "15. data_produkcji_silownika__reklamacja (date)",
-                    "16. typ_cylindra__reklamacja (text)", "17. zlecenie__reklamacja (text)", "18. status__reklamacja (checkbox)",
-                    "19. nr_protokolu__reklamacja (text)", "20. analiza_terminowosci_weryfikacji__reklamacja (number)", "21. dokument_rozliczeniowy__reklamacja (text)",
-                    "22. nr_dokumentu__reklamacja (text)", "23. data_dokumentu__reklamacja (date)", "24. nr_magazynu__reklamacja (text)",
-                    "25. nr_listu_przewozowego__reklamacja (text)", "26. przewoznik__reklamacja (text)", "27. analiza_terminowosci_realizacji__reklamacja (number)",
-                    "28. imie_nazwisko__pracownik (list)", "29. nazwa__slownik_dzial (list)"
+                    "1. data_otwarcia__reklamacja", "2. nazwa__firma", "3. kod__detal", "4. zlecenie__reklamacja",
+                    "5. nazwa_wyrobu__detal", "6. oznaczenie__detal", "7. ilosc_zlecenie__detal", "8. ilosc_niezgodna__detal",
+                    "9. status__opis_problemu", "10. miejsce_zatrzymania__opis_problemu", "11. miejsce_powstania__opis_problemu", "12. opis__opis_problemu",
+                    "13. przyczyna_bezposrednia__opis_problemu", "14. data_planowana__dzialanie", "15. opis_dzialania__dzialanie", "16. uwagi__dzialanie",
+                    "17. imie_nazwisko__pracownik", "18. data_planowana__dzialanie", "19. uwagi__dzialanie", "20. data_rzeczywista__dzialanie",
+                    "21. imie_nazwisko__pracownik", "22. data__sprawdzenie_dzialan", "23. status__sprawdzenie_dzialan", "24. uwagi__sprawdzenie_dzialan",
+                    "25. imie_nazwisko__pracownik", "26. data__sprawdzenie_dzialan", "27. status__sprawdzenie_dzialan", "28. uwagi__sprawdzenie_dzialan",
+                    "29. nazwa__slownik_dzial"
                 ]
                 # Update cached data
                 st.session_state.doskonalenia_current_df = fresh_df.copy()
