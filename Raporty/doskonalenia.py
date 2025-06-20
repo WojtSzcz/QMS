@@ -8,12 +8,7 @@ import os
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from db_connect import execute_query, load_employee_names, load_department_names, update_database_cell, load_opis_problemu_status_options, load_miejsce_zatrzymania_options, load_miejsce_powstania_options, load_firma_names, load_dokument_rozliczeniowy_options
 
-# Initialize session state for update tracking
-if 'doskonalenia_update_status' not in st.session_state:
-    st.session_state.doskonalenia_update_status = []
-
-if 'doskonalenia_original_df' not in st.session_state:
-    st.session_state.doskonalenia_original_df = None
+# Session state initialization moved to main() function
 
 def update_doskonalenia_database(row_idx, column_name, new_value, original_df):
     """Handle database updates for doskonalenia - primarily reklamacja and opis_problemu tables"""
@@ -533,6 +528,13 @@ def get_column_config():
 
 def main():
     st.title("Doskonalenia - Quality Management System")
+    
+    # Initialize session state for update tracking
+    if 'doskonalenia_update_status' not in st.session_state:
+        st.session_state.doskonalenia_update_status = []
+    
+    if 'doskonalenia_original_df' not in st.session_state:
+        st.session_state.doskonalenia_original_df = None
     
     # Sidebar filters
     st.sidebar.header("Filters")

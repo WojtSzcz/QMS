@@ -8,12 +8,7 @@ import os
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from db_connect import execute_query, load_employee_names, load_firma_names, load_dokument_rozliczeniowy_options, update_database_cell
 
-# Initialize session state for update tracking
-if 'raporty_8d_update_status' not in st.session_state:
-    st.session_state.raporty_8d_update_status = []
-
-if 'raporty_8d_original_df' not in st.session_state:
-    st.session_state.raporty_8d_original_df = None
+# Session state initialization moved to main() function
 
 def update_raporty_8d_database(row_idx, column_name, new_value, original_df):
     """Handle database updates for raporty_8d - primarily reklamacja table"""
@@ -267,6 +262,13 @@ def get_column_config():
 
 def main():
     st.title("Raporty 8D - Quality Management System")
+    
+    # Initialize session state for update tracking
+    if 'raporty_8d_update_status' not in st.session_state:
+        st.session_state.raporty_8d_update_status = []
+    
+    if 'raporty_8d_original_df' not in st.session_state:
+        st.session_state.raporty_8d_original_df = None
     
     # Sidebar filters
     st.sidebar.header("Filters")

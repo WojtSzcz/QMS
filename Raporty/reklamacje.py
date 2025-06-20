@@ -8,12 +8,7 @@ import os
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from db_connect import execute_query, load_firma_names, load_dokument_rozliczeniowy_options, load_opis_problemu_status_options, load_miejsce_zatrzymania_options, load_miejsce_powstania_options, update_database_cell
 
-# Initialize session state for update tracking
-if 'reklamacje_update_status' not in st.session_state:
-    st.session_state.reklamacje_update_status = []
-
-if 'reklamacje_original_df' not in st.session_state:
-    st.session_state.reklamacje_original_df = None
+# Session state initialization moved to main() function
 
 def update_reklamacje_database(row_idx, column_name, new_value, original_df):
     """Handle database updates for reklamacje with complex relationships"""

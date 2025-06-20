@@ -8,12 +8,7 @@ import os
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from db_connect import execute_query, load_audit_types, load_employee_names, load_department_names, update_database_cell, load_opis_problemu_status_options, load_miejsce_zatrzymania_options, load_miejsce_powstania_options
 
-# Initialize session state for update tracking
-if 'audyty_update_status' not in st.session_state:
-    st.session_state.audyty_update_status = []
-
-if 'audyty_original_df' not in st.session_state:
-    st.session_state.audyty_original_df = None
+# Session state initialization moved to main() function
 
 def update_audyty_database(row_idx, column_name, new_value, original_df):
     """Handle database updates for audyty - primarily audyt table"""
@@ -43,6 +38,14 @@ def update_audyty_database(row_idx, column_name, new_value, original_df):
             
             if 'data__audyt' in column_parts:
                 field_name = 'data'
+            elif 'typ__audyt' in column_parts:
+                # Handle audit type change - need to find the ID of the selected type
+                typ_query = f"SELECT id FROM slownik_typ_audytu WHERE nazwa = '{new_value}'"
+                typ_result = execute_query(typ_query)
+                if typ_result.empty:
+                    return False, f"Audit type '{new_value}' not found in slownik_typ_audytu"
+                new_value = typ_result.iloc[0]['id']  # Use the ID instead of the name
+                field_name = 'typ_id'
             elif 'zakres__audyt' in column_parts:
                 field_name = 'zakres'
             elif 'uwagi__audyt' in column_parts:
@@ -253,6 +256,13 @@ def get_column_config():
 
 def main():
     st.title("Audyty - Quality Management System")
+    
+    # Initialize session state for update tracking
+    if 'audyty_update_status' not in st.session_state:
+        st.session_state.audyty_update_status = []
+    
+    if 'audyty_original_df' not in st.session_state:
+        st.session_state.audyty_original_df = None
     
     # Sidebar filters
     st.sidebar.header("Filters")
