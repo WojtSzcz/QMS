@@ -109,7 +109,9 @@ def load_data(filters=None):
         if filters.get('dokument_rozliczeniowy'):
             where_conditions.append(f"r.dokument_rozliczeniowy = '{filters['dokument_rozliczeniowy']}'")
     
-    where_clause = "WHERE " + " AND ".join(where_conditions) if where_conditions else ""
+    # Add base condition for raporty 8D (typ_id = 2)
+    where_conditions.append("r.typ_id = 2")
+    where_clause = "WHERE " + " AND ".join(where_conditions)
     
     query = f"""
         SELECT 

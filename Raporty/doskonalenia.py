@@ -255,13 +255,15 @@ def load_data(filters=None):
         if filters.get('miejsce_powstania'):
             where_conditions.append(f"op.miejsce_powstania = '{filters['miejsce_powstania']}'")
     
-    where_clause = "WHERE " + " AND ".join(where_conditions) if where_conditions else ""
+    # Add base condition for doskonalenia (typ_id = 3)
+    where_conditions.append("r.typ_id = 3")
+    where_clause = "WHERE " + " AND ".join(where_conditions)
     
     # Optimized query with subqueries for better performance
     query = f"""
         WITH base_data AS (
             SELECT DISTINCT
-                r.id,
+            r.id,
                 r.data_otwarcia,
                 f.nazwa as firma_nazwa,
                 dt.kod as detal_kod,
@@ -277,15 +279,15 @@ def load_data(filters=None):
                 op.opis,
                 op.przyczyna_bezposrednia,
                 sdzial.nazwa as dzial_nazwa
-            FROM reklamacja r
-            LEFT JOIN firma f ON r.firma_id = f.id
+        FROM reklamacja r
+        LEFT JOIN firma f ON r.firma_id = f.id
             LEFT JOIN reklamacja_detal rd ON r.id = rd.reklamacja_id
             LEFT JOIN detal dt ON rd.detal_id = dt.id
-            LEFT JOIN opis_problemu_reklamacja opr ON r.id = opr.reklamacja_id
-            LEFT JOIN opis_problemu op ON opr.opis_problemu_id = op.id
-            LEFT JOIN opis_problemu_dzial opd ON op.id = opd.opis_problemu_id
+        LEFT JOIN opis_problemu_reklamacja opr ON r.id = opr.reklamacja_id
+        LEFT JOIN opis_problemu op ON opr.opis_problemu_id = op.id
+        LEFT JOIN opis_problemu_dzial opd ON op.id = opd.opis_problemu_id
             LEFT JOIN slownik_dzial sdzial ON opd.dzial_id = sdzial.id
-            {where_clause}
+        {where_clause}
         ),
         dzialanie_data AS (
             SELECT 

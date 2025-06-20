@@ -177,7 +177,9 @@ def load_data(filters=None):
         if filters.get('przewoznik'):
             where_conditions.append(f"r.przewoznik ILIKE '%{filters['przewoznik']}%'")
     
-    where_clause = "WHERE " + " AND ".join(where_conditions) if where_conditions else ""
+    # Add base condition for reklamacje (typ_id = 1)
+    where_conditions.append("r.typ_id = 1")
+    where_clause = "WHERE " + " AND ".join(where_conditions)
     
     query = f"""
         SELECT 
@@ -531,7 +533,7 @@ def main():
     )
     
     # Track changes and update database (REAL)
-    if "edited_rows" in st.session_state.reklamacje_editor:
+    if hasattr(st.session_state, 'reklamacje_editor') and "edited_rows" in st.session_state.reklamacje_editor:
         edited_rows = st.session_state.reklamacje_editor["edited_rows"]
         if edited_rows:
             for row_idx, changes in edited_rows.items():
