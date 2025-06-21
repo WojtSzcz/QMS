@@ -234,71 +234,97 @@ def get_column_config():
     return {
         "1. kod_firma": st.column_config.TextColumn(
             "1. kod_firma",
-            width="small"
+            width="small",
+            max_chars=20
         ),
         "2. nazwa_firma": st.column_config.SelectboxColumn(
             "2. nazwa_firma",
             options=firma_names,
-            width="medium"
+            width="medium",
+            required=True
         ),
         "3. nr_reklamacji_reklamacja": st.column_config.TextColumn(
             "3. nr_reklamacji_reklamacja",
-            width="medium"
+            width="medium",
+            max_chars=100
         ),
         "4. nr_protokolu_reklamacja": st.column_config.TextColumn(
             "4. nr_protokolu_reklamacja",
-            width="medium"
+            width="medium",
+            max_chars=100
         ),
         "5. zlecenie_reklamacja": st.column_config.TextColumn(
             "5. zlecenie_reklamacja",
-            width="medium"
+            width="medium",
+            max_chars=50
         ),
         "6. data_otwarcia_reklamacja": st.column_config.DateColumn(
             "6. data_otwarcia_reklamacja",
             format="YYYY-MM-DD",
-            width="medium"
+            width="medium",
+            min_value=datetime.date(2000, 1, 1),
+            max_value=datetime.date(2099, 12, 31)
         ),
         "7. kod_detal": st.column_config.TextColumn(
             "7. kod_detal",
-            width="medium"
+            width="medium",
+            max_chars=50,
+            required=True
         ),
         "8. typ_cylindra_reklamacja": st.column_config.TextColumn(
             "8. typ_cylindra_reklamacja",
-            width="medium"
+            width="medium",
+            max_chars=150
         ),
         "9. oznaczenie_detal": st.column_config.TextColumn(
             "9. oznaczenie_detal",
-            width="medium"
+            width="medium",
+            max_chars=100
         ),
         "10. oznaczenie_klienta_firma": st.column_config.TextColumn(
             "10. oznaczenie_klienta_firma",
-            width="medium"
+            width="medium",
+            max_chars=50
         ),
         "11. ilosc_niezgodna_detal": st.column_config.NumberColumn(
             "11. ilosc_niezgodna_detal",
-            width="small"
+            width="small",
+            min_value=0,
+            max_value=999999,
+            step=1,
+            format="%d"
         ),
         "12. data_weryfikacji_reklamacja": st.column_config.DateColumn(
             "12. data_weryfikacji_reklamacja",
             format="YYYY-MM-DD",
-            width="medium"
+            width="medium",
+            min_value=datetime.date(2000, 1, 1),
+            max_value=datetime.date(2099, 12, 31)
         ),
         "13. analiza_terminowosci_weryfikacji": st.column_config.NumberColumn(
             "13. analiza_terminowosci_weryfikacji",
-            width="medium"
+            width="medium",
+            min_value=-999999,
+            max_value=999999,
+            step=1,
+            format="%d"
         ),
         "14. data_produkcji_reklamacja": st.column_config.DateColumn(
             "14. data_produkcji_reklamacja",
             format="YYYY-MM-DD",
-            width="medium"
+            width="medium",
+            min_value=datetime.date(2000, 1, 1),
+            max_value=datetime.date(2099, 12, 31)
         ),
         "15. kod_przyczyny_opis_problemu": st.column_config.TextColumn(
             "15. kod_przyczyny_opis_problemu",
-            width="medium"
+            width="medium",
+            max_chars=50
         ),
         "16. przyczyna_ogolna_opis_problemu": st.column_config.TextColumn(
             "16. przyczyna_ogolna_opis_problemu",
-            width="large"
+            width="large",
+            max_chars=150
         ),
         "17. przyczyna_bezposrednia_opis_problemu": st.column_config.TextColumn(
             "17. przyczyna_bezposrednia_opis_problemu",
@@ -310,27 +336,51 @@ def get_column_config():
         ),
         "19. ilosc_uznanych_detal": st.column_config.NumberColumn(
             "19. ilosc_uznanych_detal",
-            width="small"
+            width="small",
+            min_value=0,
+            max_value=999999,
+            step=1,
+            format="%d"
         ),
         "20. ilosc_nieuznanych_detal": st.column_config.NumberColumn(
             "20. ilosc_nieuznanych_detal",
-            width="small"
+            width="small",
+            min_value=0,
+            max_value=999999,
+            step=1,
+            format="%d"
         ),
         "21. ilosc_nowych_uznanych_detal": st.column_config.NumberColumn(
             "21. ilosc_nowych_uznanych_detal",
-            width="small"
+            width="small",
+            min_value=0,
+            max_value=999999,
+            step=1,
+            format="%d"
         ),
         "22. ilosc_nowych_nieuznanych_detal": st.column_config.NumberColumn(
             "22. ilosc_nowych_nieuznanych_detal",
-            width="small"
+            width="small",
+            min_value=0,
+            max_value=999999,
+            step=1,
+            format="%d"
         ),
         "23. ilosc_rozliczona_detal": st.column_config.NumberColumn(
             "23. ilosc_rozliczona_detal",
-            width="small"
+            width="small",
+            min_value=0,
+            max_value=999999,
+            step=1,
+            format="%d"
         ),
         "24. ilosc_nieuznanych_naprawionych_detal": st.column_config.NumberColumn(
             "24. ilosc_nieuznanych_naprawionych_detal",
-            width="small"
+            width="small",
+            min_value=0,
+            max_value=999999,
+            step=1,
+            format="%d"
         ),
         "25. dokument_rozliczeniowy_reklamacja": st.column_config.SelectboxColumn(
             "25. dokument_rozliczeniowy_reklamacja",
@@ -339,28 +389,38 @@ def get_column_config():
         ),
         "26. nr_dokumentu_reklamacja": st.column_config.TextColumn(
             "26. nr_dokumentu_reklamacja",
-            width="medium"
+            width="medium",
+            max_chars=100
         ),
         "27. data_dokumentu_reklamacja": st.column_config.DateColumn(
             "27. data_dokumentu_reklamacja",
             format="YYYY-MM-DD",
-            width="medium"
+            width="medium",
+            min_value=datetime.date(2000, 1, 1),
+            max_value=datetime.date(2099, 12, 31)
         ),
         "28. nr_magazynu_reklamacja": st.column_config.TextColumn(
             "28. nr_magazynu_reklamacja",
-            width="medium"
+            width="medium",
+            max_chars=50
         ),
         "29. nr_listu_przewozowego_reklamacja": st.column_config.TextColumn(
             "29. nr_listu_przewozowego_reklamacja",
-            width="medium"
+            width="medium",
+            max_chars=100
         ),
         "30. przewoznik_reklamacja": st.column_config.TextColumn(
             "30. przewoznik_reklamacja",
-            width="medium"
+            width="medium",
+            max_chars=100
         ),
         "31. analiza_terminowosci_realizacji": st.column_config.NumberColumn(
             "31. analiza_terminowosci_realizacji",
-            width="medium"
+            width="medium",
+            min_value=-999999,
+            max_value=999999,
+            step=1,
+            format="%d"
         )
     }
 

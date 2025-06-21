@@ -14,7 +14,7 @@ DB_PARAMS = {
     "host": os.getenv("DB_HOST", "localhost"),
     "database": os.getenv("DB_NAME", "zehs_db_full"),
     "user": os.getenv("DB_USER", "postgres"),
-    "password": os.getenv("DB_PASSWORD", "NoisePattern5123"),
+    "password": os.getenv("DB_PASSWORD"),
     "port": os.getenv("DB_PORT", "5432")
 }
 

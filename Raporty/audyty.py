@@ -147,21 +147,30 @@ def load_data(filters=None):
 def get_column_config():
     audit_types = load_audit_types()
     employee_names = load_employee_names()
+    status_options = load_opis_problemu_status_options()
+    miejsce_zatrzymania_options = load_miejsce_zatrzymania_options()
+    miejsce_powstania_options = load_miejsce_powstania_options()
+    department_names = load_department_names()
     
     return {
         "1. data__audyt (date)": st.column_config.DateColumn(
             "1. data__audyt (date)",
             format="YYYY-MM-DD",
-            width="medium"
+            width="medium",
+            min_value=datetime.date(2000, 1, 1),
+            max_value=datetime.date(2099, 12, 31),
+            required=True
         ),
         "2. typ__audyt (text)": st.column_config.SelectboxColumn(
             "2. typ__audyt (text)",
             options=audit_types,
-            width="medium"
+            width="medium",
+            required=True
         ),
         "3. zakres__audyt (text)": st.column_config.TextColumn(
             "3. zakres__audyt (text)",
-            width="large"
+            width="large",
+            max_chars=255
         ),
         "4. uwagi__audyt (text)": st.column_config.TextColumn(
             "4. uwagi__audyt (text)",
@@ -178,12 +187,16 @@ def get_column_config():
         "7. termin_wyslania_odpowiedzi__audyt (date)": st.column_config.DateColumn(
             "7. termin_wyslania_odpowiedzi__audyt (date)",
             format="YYYY-MM-DD",
-            width="medium"
+            width="medium",
+            min_value=datetime.date(2000, 1, 1),
+            max_value=datetime.date(2099, 12, 31)
         ),
         "8. termin_zakonczenia_dzialan__audyt (date)": st.column_config.DateColumn(
             "8. termin_zakonczenia_dzialan__audyt (date)",
             format="YYYY-MM-DD",
-            width="medium"
+            width="medium",
+            min_value=datetime.date(2000, 1, 1),
+            max_value=datetime.date(2099, 12, 31)
         ),
         "9. opis_dzialania__dzialanie (list)": st.column_config.ListColumn(
             "9. opis_dzialania__dzialanie (list)",
@@ -203,17 +216,18 @@ def get_column_config():
         ),
         "13. status__opis_problemu (text)": st.column_config.SelectboxColumn(
             "13. status__opis_problemu (text)",
-            options=["w trakcie", "zakonczone"],
-            width="medium"
+            options=status_options,
+            width="medium",
+            default="w trakcie"
         ),
         "14. miejsce_zatrzymania__opis_problemu (text)": st.column_config.SelectboxColumn(
             "14. miejsce_zatrzymania__opis_problemu (text)",
-            options=["P", "M", "G"],
+            options=miejsce_zatrzymania_options,
             width="small"
         ),
         "15. miejsce_powstania__opis_problemu (text)": st.column_config.SelectboxColumn(
             "15. miejsce_powstania__opis_problemu (text)",
-            options=["P", "G"],
+            options=miejsce_powstania_options,
             width="small"
         ),
         "16. uwagi__opis_problemu (text)": st.column_config.TextColumn(
@@ -222,11 +236,13 @@ def get_column_config():
         ),
         "17. kod_przyczyny__opis_problemu (text)": st.column_config.TextColumn(
             "17. kod_przyczyny__opis_problemu (text)",
-            width="medium"
+            width="medium",
+            max_chars=50
         ),
         "18. przyczyna_ogolna__opis_problemu (text)": st.column_config.TextColumn(
             "18. przyczyna_ogolna__opis_problemu (text)",
-            width="large"
+            width="large",
+            max_chars=150
         ),
         "19. data__sprawdzanie_dzialan (list)": st.column_config.ListColumn(
             "19. data__sprawdzanie_dzialan (list)",

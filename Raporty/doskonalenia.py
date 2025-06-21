@@ -397,54 +397,75 @@ def load_data(filters=None):
 def get_column_config():
     employee_names = load_employee_names()
     department_names = load_department_names()
+    status_options = load_opis_problemu_status_options()
+    miejsce_zatrzymania_options = load_miejsce_zatrzymania_options()
+    miejsce_powstania_options = load_miejsce_powstania_options()
     
     return {
         "1. data_otwarcia__reklamacja": st.column_config.DateColumn(
             "1. data_otwarcia__reklamacja",
             format="YYYY-MM-DD",
-            width="medium"
+            width="medium",
+            min_value=datetime.date(2000, 1, 1),
+            max_value=datetime.date(2099, 12, 31)
         ),
         "2. nazwa__firma": st.column_config.TextColumn(
             "2. nazwa__firma",
-            width="medium"
+            width="medium",
+            max_chars=100,
+            required=True
         ),
         "3. kod__detal": st.column_config.TextColumn(
             "3. kod__detal",
-            width="medium"
+            width="medium",
+            max_chars=50,
+            required=True
         ),
         "4. zlecenie__reklamacja": st.column_config.TextColumn(
             "4. zlecenie__reklamacja",
-            width="medium"
+            width="medium",
+            max_chars=50
         ),
         "5. nazwa_wyrobu__detal": st.column_config.TextColumn(
             "5. nazwa_wyrobu__detal",
-            width="large"
+            width="large",
+            max_chars=150
         ),
         "6. oznaczenie__detal": st.column_config.TextColumn(
             "6. oznaczenie__detal",
-            width="medium"
+            width="medium",
+            max_chars=100
         ),
         "7. ilosc_zlecenie__detal": st.column_config.NumberColumn(
             "7. ilosc_zlecenie__detal",
-            width="small"
+            width="small",
+            min_value=0,
+            max_value=999999,
+            step=1,
+            format="%d"
         ),
         "8. ilosc_niezgodna__detal": st.column_config.NumberColumn(
             "8. ilosc_niezgodna__detal",
-            width="small"
+            width="small",
+            min_value=0,
+            max_value=999999,
+            step=1,
+            format="%d"
         ),
         "9. status__opis_problemu": st.column_config.SelectboxColumn(
             "9. status__opis_problemu",
-            options=["w trakcie", "zakonczone"],
-            width="medium"
+            options=status_options,
+            width="medium",
+            required=True
         ),
         "10. miejsce_zatrzymania__opis_problemu": st.column_config.SelectboxColumn(
             "10. miejsce_zatrzymania__opis_problemu",
-            options=["P", "M", "G"],
+            options=miejsce_zatrzymania_options,
             width="small"
         ),
         "11. miejsce_powstania__opis_problemu": st.column_config.SelectboxColumn(
             "11. miejsce_powstania__opis_problemu",
-            options=["P", "G"],
+            options=miejsce_powstania_options,
             width="small"
         ),
         "12. opis__opis_problemu": st.column_config.TextColumn(
@@ -458,7 +479,9 @@ def get_column_config():
         "14. data_planowana__dzialanie": st.column_config.DateColumn(
             "14. data_planowana__dzialanie",
             format="YYYY-MM-DD",
-            width="medium"
+            width="medium",
+            min_value=datetime.date(2000, 1, 1),
+            max_value=datetime.date(2099, 12, 31)
         ),
         "15. opis_dzialania__dzialanie": st.column_config.TextColumn(
             "15. opis_dzialania__dzialanie",
@@ -468,14 +491,17 @@ def get_column_config():
             "16. uwagi__dzialanie",
             width="large"
         ),
-        "17. imie_nazwisko__pracownik": st.column_config.TextColumn(
+        "17. imie_nazwisko__pracownik": st.column_config.SelectboxColumn(
             "17. imie_nazwisko__pracownik",
+            options=employee_names,
             width="medium"
         ),
         "18. data_planowana__dzialanie": st.column_config.DateColumn(
             "18. data_planowana__dzialanie",
             format="YYYY-MM-DD",
-            width="medium"
+            width="medium",
+            min_value=datetime.date(2000, 1, 1),
+            max_value=datetime.date(2099, 12, 31)
         ),
         "19. uwagi__dzialanie": st.column_config.TextColumn(
             "19. uwagi__dzialanie",
@@ -484,16 +510,21 @@ def get_column_config():
         "20. data_rzeczywista__dzialanie": st.column_config.DateColumn(
             "20. data_rzeczywista__dzialanie",
             format="YYYY-MM-DD",
-            width="medium"
+            width="medium",
+            min_value=datetime.date(2000, 1, 1),
+            max_value=datetime.date(2099, 12, 31)
         ),
-        "21. imie_nazwisko__pracownik": st.column_config.TextColumn(
+        "21. imie_nazwisko__pracownik": st.column_config.SelectboxColumn(
             "21. imie_nazwisko__pracownik",
+            options=employee_names,
             width="medium"
         ),
         "22. data__sprawdzenie_dzialan": st.column_config.DateColumn(
             "22. data__sprawdzenie_dzialan",
             format="YYYY-MM-DD",
-            width="medium"
+            width="medium",
+            min_value=datetime.date(2000, 1, 1),
+            max_value=datetime.date(2099, 12, 31)
         ),
         "23. status__sprawdzenie_dzialan": st.column_config.SelectboxColumn(
             "23. status__sprawdzenie_dzialan",
@@ -504,14 +535,17 @@ def get_column_config():
             "24. uwagi__sprawdzenie_dzialan",
             width="large"
         ),
-        "25. imie_nazwisko__pracownik": st.column_config.TextColumn(
+        "25. imie_nazwisko__pracownik": st.column_config.SelectboxColumn(
             "25. imie_nazwisko__pracownik",
+            options=employee_names,
             width="medium"
         ),
         "26. data__sprawdzenie_dzialan": st.column_config.DateColumn(
             "26. data__sprawdzenie_dzialan",
             format="YYYY-MM-DD",
-            width="medium"
+            width="medium",
+            min_value=datetime.date(2000, 1, 1),
+            max_value=datetime.date(2099, 12, 31)
         ),
         "27. status__sprawdzenie_dzialan": st.column_config.SelectboxColumn(
             "27. status__sprawdzenie_dzialan",
@@ -522,8 +556,9 @@ def get_column_config():
             "28. uwagi__sprawdzenie_dzialan",
             width="large"
         ),
-        "29. nazwa__slownik_dzial": st.column_config.TextColumn(
+        "29. nazwa__slownik_dzial": st.column_config.SelectboxColumn(
             "29. nazwa__slownik_dzial",
+            options=department_names,
             width="medium"
         )
     }

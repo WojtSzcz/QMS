@@ -164,20 +164,26 @@ def load_data(filters=None):
 # Column configuration
 def get_column_config():
     employee_names = load_employee_names()
+    dokument_options = load_dokument_rozliczeniowy_options()
     
     return {
         "1. data_otwarcia__reklamacja (date)": st.column_config.DateColumn(
             "1. data_otwarcia__reklamacja (date)",
             format="YYYY-MM-DD",
-            width="medium"
+            width="medium",
+            min_value=datetime.date(2000, 1, 1),
+            max_value=datetime.date(2099, 12, 31)
         ),
         "2. nazwa__firma (text)": st.column_config.TextColumn(
             "2. nazwa__firma (text)",
-            width="medium"
+            width="medium",
+            max_chars=100,
+            required=True
         ),
         "3. nr_reklamacji__reklamacja (text)": st.column_config.TextColumn(
             "3. nr_reklamacji__reklamacja (text)",
-            width="medium"
+            width="medium",
+            max_chars=100
         ),
         "4. typ__slownik_typ_reklamacji (text)": st.column_config.TextColumn(
             "4. typ__slownik_typ_reklamacji (text)",
@@ -186,67 +192,91 @@ def get_column_config():
         "5. data_weryfikacji__reklamacja (date)": st.column_config.DateColumn(
             "5. data_weryfikacji__reklamacja (date)",
             format="YYYY-MM-DD",
-            width="medium"
+            width="medium",
+            min_value=datetime.date(2000, 1, 1),
+            max_value=datetime.date(2099, 12, 31)
         ),
         "6. data_zakonczenia__reklamacja (date)": st.column_config.DateColumn(
             "6. data_zakonczenia__reklamacja (date)",
             format="YYYY-MM-DD",
-            width="medium"
+            width="medium",
+            min_value=datetime.date(2000, 1, 1),
+            max_value=datetime.date(2099, 12, 31)
         ),
         "7. data_produkcji_silownika__reklamacja (date)": st.column_config.DateColumn(
             "7. data_produkcji_silownika__reklamacja (date)",
             format="YYYY-MM-DD",
-            width="medium"
+            width="medium",
+            min_value=datetime.date(2000, 1, 1),
+            max_value=datetime.date(2099, 12, 31)
         ),
         "8. typ_cylindra__reklamacja (text)": st.column_config.TextColumn(
             "8. typ_cylindra__reklamacja (text)",
-            width="medium"
+            width="medium",
+            max_chars=150
         ),
         "9. zlecenie__reklamacja (text)": st.column_config.TextColumn(
             "9. zlecenie__reklamacja (text)",
-            width="medium"
+            width="medium",
+            max_chars=50
         ),
         "10. status__reklamacja (checkbox)": st.column_config.CheckboxColumn(
             "10. status__reklamacja (checkbox)",
-            width="small"
+            width="small",
+            default=False
         ),
         "11. nr_protokolu__reklamacja (text)": st.column_config.TextColumn(
             "11. nr_protokolu__reklamacja (text)",
-            width="medium"
+            width="medium",
+            max_chars=100
         ),
         "12. analiza_terminowosci_weryfikacji__reklamacja (number)": st.column_config.NumberColumn(
             "12. analiza_terminowosci_weryfikacji__reklamacja (number)",
-            width="medium"
+            width="medium",
+            min_value=-999999,
+            max_value=999999,
+            step=1,
+            format="%d"
         ),
         "13. dokument_rozliczeniowy__reklamacja (text)": st.column_config.SelectboxColumn(
             "13. dokument_rozliczeniowy__reklamacja (text)",
-            options=["nota_korygujaca", "nota_obciazeniowa", "zwrot_towaru"],
+            options=dokument_options,
             width="medium"
         ),
         "14. nr_dokumentu__reklamacja (text)": st.column_config.TextColumn(
             "14. nr_dokumentu__reklamacja (text)",
-            width="medium"
+            width="medium",
+            max_chars=100
         ),
         "15. data_dokumentu__reklamacja (date)": st.column_config.DateColumn(
             "15. data_dokumentu__reklamacja (date)",
             format="YYYY-MM-DD",
-            width="medium"
+            width="medium",
+            min_value=datetime.date(2000, 1, 1),
+            max_value=datetime.date(2099, 12, 31)
         ),
         "16. nr_magazynu__reklamacja (text)": st.column_config.TextColumn(
             "16. nr_magazynu__reklamacja (text)",
-            width="medium"
+            width="medium",
+            max_chars=50
         ),
         "17. nr_listu_przewozowego__reklamacja (text)": st.column_config.TextColumn(
             "17. nr_listu_przewozowego__reklamacja (text)",
-            width="medium"
+            width="medium",
+            max_chars=100
         ),
         "18. przewoznik__reklamacja (text)": st.column_config.TextColumn(
             "18. przewoznik__reklamacja (text)",
-            width="medium"
+            width="medium",
+            max_chars=100
         ),
         "19. analiza_terminowosci_realizacji__reklamacja (number)": st.column_config.NumberColumn(
             "19. analiza_terminowosci_realizacji__reklamacja (number)",
-            width="medium"
+            width="medium",
+            min_value=-999999,
+            max_value=999999,
+            step=1,
+            format="%d"
         ),
         "20. opis_dzialania__dzialanie (list)": st.column_config.ListColumn(
             "20. opis_dzialania__dzialanie (list)",
